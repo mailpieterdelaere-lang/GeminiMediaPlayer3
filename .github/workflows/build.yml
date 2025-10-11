@@ -26,21 +26,27 @@ jobs:
           # 1. Clone ZMK directly into the 'zmk' folder
           git clone --depth 1 https://github.com/zmkfirmware/zmk.git $GITHUB_WORKSPACE/zmk
           
-          # 2. Run West Init from INSIDE the cloned ZMK folder
+          # 2. Change directory into the cloned ZMK repository
           cd $GITHUB_WORKSPACE/zmk
+          
+          # CRITICAL FIX: Manually copy west.yml to the expected location (.west)
+          mkdir -p .west
+          cp west.yml .west/
+          
+          # 3. Run West Init from INSIDE the cloned ZMK folder (now successful)
           west init -l .
           
-          # 3. Update modules from INSIDE the ZMK folder
+          # 4. Update modules
           west update
           
-          # 4. Create symlink back to your config directory (required by ZMK)
+          # 5. Create symlink back to your config directory
           ln -s $GITHUB_WORKSPACE/config $GITHUB_WORKSPACE/zmk/config
           
       - name: Build Firmware
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # CRITICAL: Change directory to the ZMK app root before building
+          # Change directory to the ZMK app root before building
           cd $GITHUB_WORKSPACE/zmk/app
           
           # The full west build command
@@ -53,5 +59,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nice_nano_v2-mediapad3-firmware
-          # The built .uf2 file is located here (path is relative to app build folder)
+          # The built .uf2 file is located here (relative to the build directory)
           path: build/zephyr/zmk.uf2
