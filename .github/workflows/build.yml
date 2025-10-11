@@ -22,8 +22,11 @@ jobs:
 
       - name: Initialize ZMK and Update Modules
         run: |
-          # 1. Initialize ZMK workspace
-          west init -l config
+          echo "Initializing ZMK with stable manifest..."
+          # CRITICAL FIX: Initialize west with the ZMK main manifest,
+          # which ensures Zephyr and ZMK versions are compatible.
+          west init -l config -m https://github.com/zmkfirmware/zmk
+          
           # 2. Fetch all source code
           west update
 
@@ -31,15 +34,10 @@ jobs:
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # CRITICAL FIX: Inject environment variables directly as arguments to west build
-          ZEPHYR_BASE="${GITHUB_WORKSPACE}/zmk/zephyr" \
+          # The ZEPHYR_BASE path should now be correctly established by the newer ZMK code.
           west build -s zmk/app -b nice_nano_v2 -- \
             -DSHIELD=mediapad3 \
-            -DZMK_CONFIG="${GITHUB_WORKSPACE}/config" \
-            -DZEPHYR_BASE="${GITHUB_WORKSPACE}/zmk/zephyr" \
-            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/zmk/zephyr" \
-            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
-            -DGNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk
+            -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
           
           echo "Build complete."
 
