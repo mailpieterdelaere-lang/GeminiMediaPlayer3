@@ -20,31 +20,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Initialize ZMK Workspace
+      - name: Clone ZMK and Initialize Workspace
         run: |
-          echo "Initializing ZMK Workspace..."
-          # CRITICAL FIX: Initialize west with the ZMK manifest location
-          # This is the original, basic method that works on all west versions.
-          west init -m https://github.com/zmkfirmware/zmk --mr main
+          echo "Cloning ZMK..."
+          # 1. Clone ZMK directly into the 'zmk' folder
+          git clone --depth 1 https://github.com/zmkfirmware/zmk.git $GITHUB_WORKSPACE/zmk
           
-      - name: Update Modules and Configure Build
-        run: |
-          echo "Updating Modules..."
-          # Fetch all source code
+          # 2. Run West Init from INSIDE the cloned ZMK folder
+          cd $GITHUB_WORKSPACE/zmk
+          west init -l .
+          
+          # 3. Update modules from INSIDE the ZMK folder
           west update
           
-          # Manually create the configuration path link for west build
+          # 4. Create symlink back to your config directory (required by ZMK)
           ln -s $GITHUB_WORKSPACE/config $GITHUB_WORKSPACE/zmk/config
-          
-          # Set ZEPHYR_BASE to ensure paths are correct
-          export ZEPHYR_BASE="$GITHUB_WORKSPACE/zmk/zephyr"
           
       - name: Build Firmware
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
+          # CRITICAL: Change directory to the ZMK app root before building
+          cd $GITHUB_WORKSPACE/zmk/app
+          
           # The full west build command
-          west build -s zmk/app -b nice_nano_v2 -- \
+          west build -b nice_nano_v2 -- \
             -DSHIELD=mediapad3
           
           echo "Build complete."
@@ -53,5 +53,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nice_nano_v2-mediapad3-firmware
-          # The built .uf2 file is located here
+          # The built .uf2 file is located here (path is relative to app build folder)
           path: build/zephyr/zmk.uf2
