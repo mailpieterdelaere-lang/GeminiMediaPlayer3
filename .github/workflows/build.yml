@@ -20,23 +20,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Initialize ZMK and Update Modules
+      - name: Initialize ZMK Workspace
         run: |
-          echo "Initializing ZMK with stable manifest..."
-          # CRITICAL FIX: Add --manifest-path to point to the correct location within the ZMK repo
-          west init -m https://github.com/zmkfirmware/zmk --mr main --manifest-path west.yml
+          echo "Initializing ZMK Workspace..."
+          # CRITICAL FIX: Initialize west with the ZMK manifest location
+          # This is the original, basic method that works on all west versions.
+          west init -m https://github.com/zmkfirmware/zmk --mr main
           
-          # 2. Fetch all source code
+      - name: Update Modules and Configure Build
+        run: |
+          echo "Updating Modules..."
+          # Fetch all source code
           west update
-
+          
+          # Manually create the configuration path link for west build
+          ln -s $GITHUB_WORKSPACE/config $GITHUB_WORKSPACE/zmk/config
+          
+          # Set ZEPHYR_BASE to ensure paths are correct
+          export ZEPHYR_BASE="$GITHUB_WORKSPACE/zmk/zephyr"
+          
       - name: Build Firmware
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
           # The full west build command
           west build -s zmk/app -b nice_nano_v2 -- \
-            -DSHIELD=mediapad3 \
-            -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+            -DSHIELD=mediapad3
           
           echo "Build complete."
 
