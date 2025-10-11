@@ -27,16 +27,16 @@ jobs:
           # 1. Initialize west using the local config folder as the manifest location.
           west init -l config
           
-          # 2. Fetch all source code (this sets up the environment files)
+          # 2. Fetch all source code
           west update
           
-          # 3. Source the environment script manually for the current shell session.
-          #    This guarantees ZEPHYR_BASE and other paths are known.
-          . .west/west.sh
+          # CRITICAL FIX: Source the official Zephyr environment script from the correct path.
+          # This sets ZEPHYR_BASE and other toolchain variables correctly for the shell session.
+          . zmk/zephyr/zephyr-env.sh
           
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # 4. The full west build command
+          # 3. The full west build command
           west build -s zmk/app -b nice_nano_v2 -- \
             -DSHIELD=mediapad3 \
             -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
