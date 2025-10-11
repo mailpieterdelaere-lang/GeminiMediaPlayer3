@@ -18,29 +18,29 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history to ensure 'west init' works correctly
           fetch-depth: 0
 
       - name: Initialize ZMK and Update Modules
         run: |
           # 1. Initialize ZMK workspace
           west init -l config
-          
-          # 2. Fetch all source code (ZMK, Zephyr, Drivers)
+          # 2. Fetch all source code
           west update
-          
-      - name: Build Firmware
-        # We manually set the critical environment variables here
-        # This bypasses the need for the west.sh file entirely
+
+      - name: Set Persistent ZMK Environment
         run: |
-          # Set the required path to the Zephyr RTOS source code
-          export ZEPHYR_BASE="${GITHUB_WORKSPACE}/zmk/zephyr"
-          export ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb
-          export GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk
-          
+          # CRITICAL FIX: Set ZEPHYR_BASE to persist across steps
+          echo "ZEPHYR_BASE=${GITHUB_WORKSPACE}/zmk/zephyr" >> $GITHUB_ENV
+          echo "ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb" >> $GITHUB_ENV
+          echo "GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk" >> $GITHUB_ENV
+        shell: bash # Explicitly use bash for this step to ensure echo redirects correctly
+
+      - name: Build Firmware
+        # Environment variables are now automatically loaded from $GITHUB_ENV
+        run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # The full west build command with explicit paths and shield definition
+          # The full west build command
           west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=mediapad3 -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
           echo "Build complete."
 
