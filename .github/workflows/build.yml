@@ -11,6 +11,7 @@ jobs:
   build:
     uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
     with:
-      # Use the older, more widely recognized arguments to define the build target.
+      # Explicitly defined inputs for board and shield
+      # This format is reliable for the ZMK build action.
       board: nice_nano_v2
       shield: mediapad3
