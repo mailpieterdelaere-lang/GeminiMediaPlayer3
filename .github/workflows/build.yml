@@ -23,9 +23,8 @@ jobs:
       - name: Initialize ZMK and Update Modules
         run: |
           echo "Initializing ZMK with stable manifest..."
-          # CRITICAL FIX: Initialize west using the remote ZMK manifest (-m),
-          # and omit the local manifest directory (-l config) argument.
-          west init -m https://github.com/zmkfirmware/zmk --mr main
+          # CRITICAL FIX: Add --manifest-path to point to the correct location within the ZMK repo
+          west init -m https://github.com/zmkfirmware/zmk --mr main --manifest-path west.yml
           
           # 2. Fetch all source code
           west update
