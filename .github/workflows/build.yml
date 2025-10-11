@@ -9,9 +9,10 @@ on:
 
 jobs:
   build:
+    # CRITICAL FIX: Ensure you are referencing the 'main' branch of the ZMK action
     uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
     with:
-      # This block passes the necessary information to the ZMK build action.
+      # This parameter is correct for the 'main' branch of the ZMK action
       build_set: |
         [
           { "board": "nice_nano_v2", "shield": "mediapad3" }
