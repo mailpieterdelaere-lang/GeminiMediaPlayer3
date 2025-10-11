@@ -23,9 +23,9 @@ jobs:
       - name: Initialize ZMK and Update Modules
         run: |
           echo "Initializing ZMK with stable manifest..."
-          # CRITICAL FIX: Initialize west with the ZMK main manifest,
-          # which ensures Zephyr and ZMK versions are compatible.
-          west init -l config -m https://github.com/zmkfirmware/zmk
+          # CRITICAL FIX: Initialize west using the remote ZMK manifest (-m),
+          # and omit the local manifest directory (-l config) argument.
+          west init -m https://github.com/zmkfirmware/zmk --mr main
           
           # 2. Fetch all source code
           west update
@@ -34,7 +34,7 @@ jobs:
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # The ZEPHYR_BASE path should now be correctly established by the newer ZMK code.
+          # The full west build command
           west build -s zmk/app -b nice_nano_v2 -- \
             -DSHIELD=mediapad3 \
             -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
