@@ -27,25 +27,20 @@ jobs:
           # 2. Fetch all source code
           west update
 
-      - name: Set Persistent ZMK Environment
-        run: |
-          # Set ZEPHYR_BASE for the build system to find the source
-          echo "ZEPHYR_BASE=${GITHUB_WORKSPACE}/zmk/zephyr" >> $GITHUB_ENV
-          
-          # CRITICAL FIX: Set CMAKE_PREFIX_PATH so CMake can find ZephyrConfig.cmake
-          echo "CMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/zmk/zephyr" >> $GITHUB_ENV
-          
-          echo "ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb" >> $GITHUB_ENV
-          echo "GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk" >> $GITHUB_ENV
-        shell: bash
-
       - name: Build Firmware
-        # Environment variables are now automatically loaded from $GITHUB_ENV
         run: |
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # The full west build command
-          west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=mediapad3 -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+          # CRITICAL FIX: Inject environment variables directly as arguments to west build
+          ZEPHYR_BASE="${GITHUB_WORKSPACE}/zmk/zephyr" \
+          west build -s zmk/app -b nice_nano_v2 -- \
+            -DSHIELD=mediapad3 \
+            -DZMK_CONFIG="${GITHUB_WORKSPACE}/config" \
+            -DZEPHYR_BASE="${GITHUB_WORKSPACE}/zmk/zephyr" \
+            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/zmk/zephyr" \
+            -DZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb \
+            -DGNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk
+          
           echo "Build complete."
 
       - name: Archive Firmware
