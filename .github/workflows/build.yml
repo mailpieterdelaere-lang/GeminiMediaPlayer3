@@ -9,10 +9,11 @@ on:
 
 jobs:
   build:
-    # CRITICAL FIX: Reference a stable ZMK tag that supports 'build_set'
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@v3.2.0
+    # DEFINITIVE FIX: Use the specific ZMK action tag (e.g., v2.0.0, or main for latest)
+    # Let's use the 'main' branch reference, as it is the most current and general.
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
     with:
-      # Use the 'build_set' input, which is supported by v3.2.0
+      # Use the 'build_set' input, which is the current required syntax.
       build_set: |
         [
           { "board": "nice_nano_v2", "shield": "mediapad3" }
