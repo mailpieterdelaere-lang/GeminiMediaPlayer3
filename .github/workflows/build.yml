@@ -9,12 +9,43 @@ on:
 
 jobs:
   build:
-    # DEFINITIVE FIX: Use the specific ZMK action tag (e.g., v2.0.0, or main for latest)
-    # Let's use the 'main' branch reference, as it is the most current and general.
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
-    with:
-      # Use the 'build_set' input, which is the current required syntax.
-      build_set: |
-        [
-          { "board": "nice_nano_v2", "shield": "mediapad3" }
-        ]
+    # Use the official ZMK build environment image
+    runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history to ensure 'west init' works correctly
+          fetch-depth: 0
+
+      - name: Initialize West/ZMK Modules
+        run: |
+          # Initialize the ZMK workspace using your config directory as the manifest
+          west init -l config
+          # Fetch all necessary source code
+          west update
+
+      - name: Export ZMK Environment Variables
+        run: |
+          # Set up the necessary build path
+          export ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb
+          export GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk
+          # Export necessary paths for 'west build'
+          export CMAKE_PREFIX_PATH=$ZEPHYR_BASE/cmake
+
+      - name: Build Firmware
+        run: |
+          echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
+          # The full west build command with explicit paths and shield definition
+          west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=mediapad3 -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+          echo "Build complete."
+
+      - name: Archive Firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BOARD }}-mediapad3-firmware
+          # The built .uf2 file is located here
+          path: build/zephyr/zmk.uf2
