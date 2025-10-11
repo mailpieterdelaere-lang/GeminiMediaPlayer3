@@ -1,3 +1,8 @@
+# zephyr/module.yml
+# This tells ZMK where to find your custom shield files
+name: mediapad3-module
 build:
-  settings:
-    board_root: .
+  cmake-ext: true
+  kconfig-ext: true
+  board-root: boards
+  dts-root: boards
