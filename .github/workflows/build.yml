@@ -29,11 +29,11 @@ jobs:
           # 2. Change directory into the cloned ZMK repository
           cd $GITHUB_WORKSPACE/zmk
           
-          # CRITICAL FIX: Manually copy west.yml to the expected location (.west)
+          # CRITICAL FIX: Manually copy the manifest file from its TRUE location (zephyr/west.yml)
           mkdir -p .west
-          cp west.yml .west/
+          cp zephyr/west.yml .west/
           
-          # 3. Run West Init from INSIDE the cloned ZMK folder (now successful)
+          # 3. Run West Init from INSIDE the cloned ZMK folder (now with the manifest available)
           west init -l .
           
           # 4. Update modules
