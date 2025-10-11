@@ -1,6 +1,18 @@
 name: Build ZMK firmware
-on: [push, pull_request, workflow_dispatch]
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@v0.3
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    with:
+      # This block passes the necessary information to the ZMK build action.
+      build_set: |
+        [
+          { "board": "nice_nano_v2", "shield": "mediapad3" }
+        ]
