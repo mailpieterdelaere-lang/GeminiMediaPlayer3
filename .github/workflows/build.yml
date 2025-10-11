@@ -24,19 +24,17 @@ jobs:
       - name: Initialize ZMK, Update Modules, and Setup Environment
         run: |
           # 1. Initialize ZMK workspace (west init)
-          #    Use the 'config' directory as the manifest location (-l config)
           west init -l config
           
           # 2. Fetch all source code (ZMK, Zephyr, Drivers)
-          #    This step brings in the 'ZephyrConfig.cmake' file that was missing.
           west update
           
           # 3. Export necessary environment variables for the build
-          #    'ZEPHYR_BASE' is required for the build system to find Zephyr's configuration.
-          source west.sh
+          #    CRITICAL FIX: Changed 'source west.sh' to '. west.sh'
+          . west.sh
           export ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb
           export GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk
-          # Re-export ZEPHYR_BASE to be safe
+          # Export ZEPHYR_BASE to be safe
           export ZEPHYR_BASE=$(pwd)/zmk/zephyr
           echo "ZEPHYR_BASE is set to: $ZEPHYR_BASE"
 
