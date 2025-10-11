@@ -1,0 +1,5 @@
+# Define the name that appears over Bluetooth/USB
+CONFIG_ZMK_KEYBOARD_NAME="MediaPad3"
+
+# Enable deep sleep for better battery life (common for BLE devices)
+CONFIG_ZMK_SLEEP=y
