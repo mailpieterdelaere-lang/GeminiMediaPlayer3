@@ -29,11 +29,15 @@ jobs:
 
       - name: Set Persistent ZMK Environment
         run: |
-          # CRITICAL FIX: Set ZEPHYR_BASE to persist across steps
+          # Set ZEPHYR_BASE for the build system to find the source
           echo "ZEPHYR_BASE=${GITHUB_WORKSPACE}/zmk/zephyr" >> $GITHUB_ENV
+          
+          # CRITICAL FIX: Set CMAKE_PREFIX_PATH so CMake can find ZephyrConfig.cmake
+          echo "CMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/zmk/zephyr" >> $GITHUB_ENV
+          
           echo "ZEPHYR_TOOLCHAIN_VARIANT=gnuarmemb" >> $GITHUB_ENV
           echo "GNUARMEMB_TOOLCHAIN_DIR=/usr/local/zephyr-sdk" >> $GITHUB_ENV
-        shell: bash # Explicitly use bash for this step to ensure echo redirects correctly
+        shell: bash
 
       - name: Build Firmware
         # Environment variables are now automatically loaded from $GITHUB_ENV
