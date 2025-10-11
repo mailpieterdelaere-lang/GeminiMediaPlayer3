@@ -1,0 +1,21 @@
+/* Define the shield's hardware components for direct wiring */
+
+/ {
+    chosen {
+        // Points to the kscan node defined below
+        zmk,kscan = &kscan_0;
+    };
+
+    kscan_0: kscan_0 {
+        compatible = "zmk,kscan-direct-gpios";
+        label = "KSCAN_0";
+
+        // Define your 3 direct-wired keys on D2, D4, D6
+        // &pro_micro_d is the standard alias for the GPIO controller on nice_nano_v2.
+        // (GPIO_ACTIVE_LOW | GPIO_PULL_UP) means the pin is pulled high by default
+        // and pressing the button pulls it low (connecting to ground).
+        direct-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>, // D2
+                       <&pro_micro_d 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>, // D4
+                       <&pro_micro_d 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; // D6
+    };
+};
