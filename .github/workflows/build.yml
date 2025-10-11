@@ -20,23 +20,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Initialize ZMK Workspace and Build
+      - name: Initialize and Build ZMK Firmware
         run: |
           echo "Initializing ZMK workspace using local manifest..."
           
-          # CRITICAL FIX: Initialize west using the local config folder as the manifest location.
-          # This relies on west.yml being inside the 'config' folder.
+          # 1. Initialize west using the local config folder as the manifest location.
           west init -l config
           
-          # Fetch all source code
+          # 2. Fetch all source code (this sets up the environment files)
           west update
           
-          # Set ZEPHYR_BASE for the build (necessary for older ZMK container)
-          export ZEPHYR_BASE=$GITHUB_WORKSPACE/zmk/zephyr
+          # 3. Source the environment script manually for the current shell session.
+          #    This guarantees ZEPHYR_BASE and other paths are known.
+          . .west/west.sh
           
           echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
           
-          # The full west build command
+          # 4. The full west build command
           west build -s zmk/app -b nice_nano_v2 -- \
             -DSHIELD=mediapad3 \
             -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
