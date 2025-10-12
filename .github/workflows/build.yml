@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and Environment Setup (Final Working Sourcing)
+     - name: ⚙️ Manual Git Clone and Environment Setup (Final Working CMake Build)
         # Final fix: Use bash shell for sourcing zephyr-env.sh
         shell: bash
         run: |
@@ -53,12 +53,21 @@ jobs:
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
           . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Build
-          echo "--- 6. Starting Final West Build ---"
+          # 6. Build (Replacing 'west build' with direct 'cmake' calls)
+          echo "--- 6. Starting Final CMake Build ---"
+          # Navigate into the ZMK application root
           cd "$GITHUB_WORKSPACE/zmk/app" || exit 1
 
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG="$GITHUB_WORKSPACE/config" || { echo "FATAL: Build failed. Review CMake output for compilation errors."; exit 1; }
-          
+          # A. CMake Configure Step
+          cmake -B build \
+            -GNinja \
+            -DBOARD=nice_nano_v2 \
+            -DSHIELD=crkbd_left \
+            -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
+            -S . || { echo "FATAL: CMake configuration failed."; exit 1; }
+            
+          # B. CMake Build Execution Step
+          cmake --build build || { echo "FATAL: Build execution failed."; exit 1; }          
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
