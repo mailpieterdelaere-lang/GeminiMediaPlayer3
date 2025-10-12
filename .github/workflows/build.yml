@@ -1,68 +1,37 @@
-name: ZMK Resilient Build
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    # Use the ZMK build container
-    container:
-      image: zmkfirmware/zmk-build-arm:stable
-    
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      
-    steps:
-      - name: ⬇️ Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 
-          
-      - name: 📦 Initialize, Locate, and Relocate Dependencies 🛠️
-        # This step guarantees the zmk folder is moved to the workspace root.
+- name: 📦 Initialize and Relocate Dependencies (Using cp -r)
         run: |
-          echo "--- 1. Initializing West Workspace (Standard Syntax) ---"
-          west init -l config || { echo "FATAL: west init failed. Check manifest errors."; exit 1; }
+          echo "--- 1. Initializing West Workspace ---"
+          west init -l config || { echo "FATAL: west init failed."; exit 1; }
           west update || { echo "FATAL: west update failed. Check access/manifest."; exit 1; }
           
-          echo "--- 2. Diagnosing File Location ---"
-          # Search the entire workspace for the crucial file
-          ZMK_ENV_PATH=$(find $GITHUB_WORKSPACE -name "zephyr-env.sh" -print -quit)
+          # -------------------------------------------------------------
+          # System Engineer Fix: Force ZMK/Zephyr dependencies into the 
+          # expected $GITHUB_WORKSPACE/zmk path using 'cp -r'.
+          # -------------------------------------------------------------
           
-          if [ -z "$ZMK_ENV_PATH" ]; then
-            echo "FATAL: zephyr-env.sh was NOT found anywhere after west update."
-            exit 1
-          fi
+          echo "--- 2. Locating and Moving Dependencies (rsync fix) ---"
           
-          # Calculate the base ZMK directory path (removing the trailing /zephyr/zephyr-env.sh)
-          # We use dirname twice to go up to the ZMK source directory
-          ZMK_SRC_DIR=$(dirname $(dirname "$ZMK_ENV_PATH"))
-          echo "TRACE: Found ZMK source directory at: $ZMK_SRC_DIR"
-          
-          # Only relocate if the ZMK source is not already at the expected location
-          if [ "$ZMK_SRC_DIR" != "$GITHUB_WORKSPACE/zmk" ]; then
-            echo "--- 3. Relocating Files to Expected Path: $GITHUB_WORKSPACE/zmk ---"
-            
-            # Use rsync for a reliable recursive copy
-            rsync -a "$ZMK_SRC_DIR/" "$GITHUB_WORKSPACE/zmk" || { echo "FATAL: Failed to copy ZMK files."; exit 1; }
-            
-            # Trace: Confirm the copy operation
-            echo "TRACE: Confirming new path contents ($GITHUB_WORKSPACE/zmk/zephyr/)"
-            ls -la "$GITHUB_WORKSPACE/zmk/zephyr/" || { echo "FATAL: Relocation failed. Target directory is missing."; exit 1; }
-            
-            echo "Relocation successful."
-          else
-            echo "TRACE: ZMK folder already correctly placed. No relocation needed."
+          # Check for the main 'zephyr' submodule, which contains the required files.
+          ZEPHYR_DIR="$GITHUB_WORKSPACE/zephyr"
+          ZMK_DIR="$GITHUB_WORKSPACE/zmk"
+
+          if [ ! -d "$ZEPHYR_DIR" ]; then
+             echo "FATAL: The 'zephyr' directory was not created by west update."
+             exit 1
           fi
 
-      - name: ⚙️ Source Environment & Build Firmware
-        # This step now runs with the guaranteed knowledge that the path exists.
-        run: |
-          # 1. Source the environment script using the absolute workspace path
-          echo "--- Sourcing Zephyr Environment ---"
-          . $GITHUB_WORKSPACE/zmk
+          echo "TRACE: Found Zephyr dependencies at: $ZEPHYR_DIR"
+
+          # Create the expected target directory
+          mkdir -p "$ZMK_DIR/zephyr"
+
+          # Copy the entire Zephyr folder structure into the expected zmk/ directory.
+          # This creates the target: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
+          echo "TRACE: Copying $ZEPHYR_DIR to $ZMK_DIR/zephyr using cp -r"
+          cp -r "$ZEPHYR_DIR/"* "$ZMK_DIR/zephyr" || { echo "FATAL: Failed to copy ZMK files using cp -r."; exit 1; }
+          
+          # Trace: Confirm the copy operation
+          echo "TRACE: Confirming new path contents ($ZMK_DIR/zephyr/)"
+          ls -la "$ZMK_DIR/zephyr/zephyr-env.sh" || { echo "FATAL: Relocation failed. Target file is missing."; exit 1; }
+          
+          echo "Relocation successful. ZMK environment is ready."
