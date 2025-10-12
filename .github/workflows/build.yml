@@ -1,4 +1,4 @@
-name: ZMK Resilient Manual Build
+name: ZMK Fully Manual Dependency Build
 
 on:
   push:
@@ -17,45 +17,50 @@ jobs:
       contents: read
       
     steps:
-      - name: ⬇️ Checkout Repository
+      - name: ⬇️ Checkout Repository (Your Config)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and Environment Setup (Integrating west Logic)
+      - name: ⚙️ Manual Git Clone and Environment Setup (No west update)
         run: |
-          # --- Dependencies and Versions (from your west.yml) ---
-          # NOTE: The Zephyr version is determined by ZMK's west.yml, which is internal.
-          # We'll clone ZMK, then use its internal west to get Zephyr correctly.
+          # --- Dependencies and Versions (Hardcoded from ZMK v0.3 Manifest) ---
+          # These SHAs/Tags are known stable for the ZMK v0.3 release line.
+          ZEPHYR_REVISION="zephyr-v2.6.99"
+          MCUB_REVISION="mcuboot-1.7.99"
+          ZMK_REVISION="v0.3" 
 
-          ZMK_REPO_URL="https://github.com/zmkfirmware/zmk"
-          ZMK_REVISION="v0.3"    # <-- From your manifest default revision
-
-          # 1. Create the ZMK directory structure and clone ZMK
-          echo "--- Cloning ZMK App into $GITHUB_WORKSPACE/zmk/app ---"
+          # 1. Create the base ZMK structure
+          echo "--- 1. Creating target directories ---"
+          mkdir -p $GITHUB_WORKSPACE/zmk/zephyr
           mkdir -p $GITHUB_WORKSPACE/zmk/app
-          git clone --depth 1 --branch $ZMK_REVISION $ZMK_REPO_URL $GITHUB_WORKSPACE/zmk/app || exit 1
+          mkdir -p $GITHUB_WORKSPACE/zmk/bootloader/mcuboot
+
+          # 2. Clone ZMK App
+          echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
+          git clone --depth 1 --branch $ZMK_REVISION https://github.com/zmkfirmware/zmk.git $GITHUB_WORKSPACE/zmk/app || exit 1
           
-          # 2. Use west inside the new zmk/app directory to get its dependencies (Zephyr)
-          echo "--- Running west update inside the cloned ZMK directory ---"
+          # 3. Clone Zephyr (The main RTOS)
+          echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
+          git clone --depth 1 --branch $ZEPHYR_REVISION https://github.com/zephyrproject-rtos/zephyr.git $GITHUB_WORKSPACE/zmk/zephyr || exit 1
+
+          # 4. Clone MCUBoot (Required Bootloader)
+          echo "--- 4. Cloning MCUBoot (Path: zmk/bootloader/mcuboot) ---"
+          git clone --depth 1 --branch $MCUB_REVISION https://github.com/mcu-tools/mcuboot.git $GITHUB_WORKSPACE/zmk/bootloader/mcuboot || exit 1
+
+          # 5. Export Zephyr Environment (Replaces sourcing zephyr-env.sh)
+          # 'west zephyr-export' uses the cloned Zephyr repo to set the necessary environment variables.
+          echo "--- 5. Exporting Zephyr Environment Variables ---"
+          export ZEPHYR_BASE="$GITHUB_WORKSPACE/zmk/zephyr"
+          west zephyr-export || { echo "FATAL: Zephyr export failed. Check paths."; exit 1; }
+
+          # 6. Build
+          echo "--- 6. Starting Final West Build ---"
+          # Navigate into the ZMK application root for the build command
           cd $GITHUB_WORKSPACE/zmk/app || exit 1
-          # This command uses the ZMK app/west.yml to fetch Zephyr, placing it at $GITHUB_WORKSPACE/zmk/zephyr
-          west update || { echo "FATAL: ZMK dependency fetch failed. Check ZMK repository."; exit 1; }
 
-          # 3. Navigate back to the workspace root for sourcing
-          cd $GITHUB_WORKSPACE
-
-          # 4. Source the environment script (Now guaranteed to exist at zmk/zephyr/...)
-          echo "--- Sourcing Zephyr Environment ---"
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. Check ZMK/Zephyr versions."; exit 1; }
-          
-          # 5. Build (using west build from the app directory)
-          echo "--- Starting West Build from zmk/app ---"
-          # Navigate back into the application root for the build command
-          cd $GITHUB_WORKSPACE/zmk/app || exit 1
-
-          # Run the standard build command
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output for compilation errors."; exit 1; }
+          # Build using the now-established environment variables
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: Build failed. Check config and keymaps."; exit 1; }
           
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
