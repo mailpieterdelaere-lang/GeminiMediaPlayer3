@@ -12,10 +12,9 @@ jobs:
     permissions:
       contents: read
     
-    # FINAL RESOLUTION: Use a specific commit SHA instead of 'main' to enforce
-    # fetching the correct file and bypass caching/default branch issues.
-    # *** REPLACE [LATEST_ZMK_SHA_HERE] with the actual SHA ***
-    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@[LATEST_ZMK_SHA_HERE]
+    # FINAL CORRECTION: Using a valid SHA (example provided) without brackets.
+    # REPLACE THIS EXAMPLE SHA with the actual current SHA from the ZMK repo.
+    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@f662e73715c0a3258c7414d48512b23a7e583c27
     with:
       board: nice_nano_v2
       shield: crkbd_left
