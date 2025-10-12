@@ -2,17 +2,18 @@
 
 / {
     chosen {
-        zmk,kscan = &kscan_0;
+        zmk,kscan = &kscan_0; // Links the chosen kscan to our custom node
     };
 
     kscan_0: kscan_0 {
         compatible = "zmk,kscan-direct-gpios";
         label = "KSCAN_0";
         
-        // 🚀 FIX: DEFINE MATRIX SIZE (1 Row, 3 Columns)
+        // 🚀 FIX: These properties are ABSOLUTELY ESSENTIAL for compilation
         rows = <1>;
         columns = <3>;
         
+        // 3 is the combined flag for GPIO_ACTIVE_LOW | GPIO_PULL_UP
         direct-gpios = <&pro_micro_d 2 3>, // D2
                        <&pro_micro_d 4 3>, // D4
                        <&pro_micro_d 6 3>; // D6
