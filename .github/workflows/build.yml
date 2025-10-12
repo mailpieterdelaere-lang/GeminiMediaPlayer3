@@ -1,4 +1,4 @@
-name: ZMK Fully Manual Dependency Build
+name: ZMK Fully Manual Dependency Build (Board-Only)
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
+      - name: ⚙️ Manual Git Clone and CMake Build (Board-Only Script)
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -35,7 +35,6 @@ jobs:
           ZEPHYR_DIR="$ZMK_REPO_ROOT/zephyr"
           ZEPHYR_ENV_SCRIPT="$ZEPHYR_DIR/zephyr-env.sh"
           APP_REPO_DIR="$ZMK_REPO_ROOT/app" # ZMK Clone Root
-          SHIELD_NAME="crkbd_left" # Initial target shield
           
           # 1. Create the base ZMK structure
           echo "--- 1. Creating target directories ---"
@@ -45,8 +44,9 @@ jobs:
 
           # 2. Clone Dependencies
           echo "--- 2. Cloning Dependencies ---"
-          # Use --recursive to ensure all shields and board definitions are fetched.
+          # Use --recursive to ensure all dependencies are fetched.
           git clone --depth 1 --branch "$ZMK_REVISION" --recursive https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK clone failed."; exit 1; }
+          
           git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZEPHYR_DIR" || { echo "FATAL: Zephyr clone failed."; exit 1; }
           git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: MCUBoot clone failed."; exit 1; }
 
@@ -61,13 +61,13 @@ jobs:
           . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 5. Build Setup and CMake Execution
-          echo "--- 5. Starting Final CMake Build ---"
+          echo "--- 5. Starting Final CMake Build (Board-Only) ---"
           
           # --- Runtime Path Definitions ---
           BUILD_DIR="$APP_REPO_DIR/build"
           APP_SOURCE_DIR="$APP_REPO_DIR" # Initial assumption
           
-          # 6. BACKUP PLAN: Check for nested 'app' directory (where CMakeLists.txt resides)
+          # 6. BACKUP PLAN: Check for nested 'app' directory
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
              echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
              APP_SOURCE_DIR="$APP_REPO_DIR/app"
@@ -78,42 +78,21 @@ jobs:
           else
              echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
           fi
-          
-          # 7. 🛡️ SHIELD CHECK AND BACKUP LOGIC
-          SHIELD_DIR="$APP_SOURCE_DIR/boards/shields"
-          echo "--- 7. Shield Selection Logic ---"
-          echo "TRACE: Listing available shields in $SHIELD_DIR..."
-          ls -F "$SHIELD_DIR" || { echo "FATAL: ZMK Shield directory not found at $SHIELD_DIR."; exit 1; }
-          
-          if [ -d "$SHIELD_DIR/$SHIELD_NAME" ]; then
-              echo "SUCCESS: Found primary shield $SHIELD_NAME."
-          elif [ -d "$SHIELD_DIR/corne_left" ]; then
-              SHIELD_NAME="corne_left"
-              echo "WARNING: Primary shield missing. Using FIRST ALTERNATIVE: $SHIELD_NAME."
-          elif [ -d "$SHIELD_DIR/promicro" ]; then
-              SHIELD_NAME="promicro"
-              echo "CRITICAL: Primary shield and first alternative missing. Using SECOND ALTERNATIVE (Generic): $SHIELD_NAME."
-              echo "NOTE: This requires all matrix pins to be defined in your /config files."
-          else
-              echo "FATAL: CRITICAL ERROR: Neither '$SHIELD_NAME', 'corne_left', nor 'promicro' shields were found after cloning."
-              exit 1
-          fi
 
-          # 8. Execute CMake
+          # 7. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
-          echo "TRACE: Final SHIELD to use: $SHIELD_NAME"
+          echo "TRACE: Final configuration will use the ZMK 'nice_nano_v2' board definition (nRF52840) and rely entirely on custom overlays in /config."
           
-          # A. CMake Configure Step (Uses the dynamically determined SHIELD_NAME)
+          # A. CMake Configure Step (Removed SHIELD, changed BOARD back to ZMK board)
           cmake -B "$BUILD_DIR" \
             -GNinja \
-            -DBOARD=nrf52840dk_nrf52840 \
-            -DSHIELD="$SHIELD_NAME" \
+            -DBOARD=nice_nano_v2 \
             -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
             -DZEPHYR_BASE="$ZEPHYR_DIR" \
             -DCMAKE_PREFIX_PATH="$ZEPHYR_DIR" \
             -DZEPHYR_DIR="$ZEPHYR_DIR" \
             -DBOARD_ROOT="$APP_SOURCE_DIR" \
-            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed. Review logs for board/shield errors."; exit 1; }
+            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed. Review logs for board errors."; exit 1; }
             
           # B. CMake Build Execution Step (Error Handled Inline)
           echo "TRACE: Executing build in directory: $BUILD_DIR"
