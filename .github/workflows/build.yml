@@ -34,55 +34,62 @@ jobs:
           # --- Path Definitions ---
           ZEPHYR_DIR="$ZMK_REPO_ROOT/zephyr"
           ZEPHYR_ENV_SCRIPT="$ZEPHYR_DIR/zephyr-env.sh"
+          APP_REPO_DIR="$ZMK_REPO_ROOT/app"
           
           # 1. Create the base ZMK structure
           echo "--- 1. Creating target directories ---"
-          mkdir -p "$ZEPHYR_DIR"
-          mkdir -p "$ZMK_REPO_ROOT/app"
-          mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot"
+          mkdir -p "$ZEPHYR_DIR" || { echo "FATAL: Failed to create Zephyr directory."; exit 1; }
+          mkdir -p "$APP_REPO_DIR" || { echo "FATAL: Failed to create ZMK app directory."; exit 1; }
+          mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: Failed to create MCUBoot directory."; exit 1; }
 
-          # 2. Clone Dependencies
-          echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
-          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_REPO_ROOT/app" || exit 1
-          echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
-          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZEPHYR_DIR" || exit 1
-          echo "--- 4. Cloning MCUBoot (Path: zmk/bootloader/mcuboot) ---"
-          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || exit 1
+          # 2. Clone Dependencies (Error Handled Inline)
+          echo "--- 2. Cloning Dependencies ---"
+          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK clone failed."; exit 1; }
+          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZEPHYR_DIR" || { echo "FATAL: Zephyr clone failed."; exit 1; }
+          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: MCUBoot clone failed."; exit 1; }
 
-          # 5. 🔍 VALIDATION CHECK: Verify critical Zephyr paths and files
-          echo "--- 5. VALIDATING ZEPHYR ENVIRONMENT ---"
+          # 3. 🔍 VALIDATION CHECK: Verify critical ZMK Shield Path
+          SHIELD_CHECK_PATH="$APP_REPO_DIR/app/boards/shields/crkbd_left"
+          if [ ! -d "$SHIELD_CHECK_PATH" ]; then
+              echo "FATAL: Critical ZMK shield path not found at $SHIELD_CHECK_PATH"
+              echo "Diagnostic: Listing contents of $APP_REPO_DIR:"
+              ls -l "$APP_REPO_DIR"
+              exit 1
+          fi
+          
+          # 4. 🔍 VALIDATION CHECK: Verify critical Zephyr paths
+          echo "--- 4. VALIDATING ZEPHYR ENVIRONMENT ---"
           if [ ! -d "$ZEPHYR_DIR" ]; then echo "FATAL: Zephyr base directory not found at $ZEPHYR_DIR"; exit 1; fi
-          if [ ! -f "$ZEPHYR_ENV_SCRIPT" ]; then echo "FATAL: Zephyr environment script not found at $ZEPHYR_ENV_SCRIPT"; ls -l "$ZEPHYR_DIR"; exit 1; fi
-          echo "TRACE: Zephyr environment checks passed."
+          if [ ! -f "$ZEPHYR_ENV_SCRIPT" ]; then echo "FATAL: Zephyr environment script not found at $ZEPHYR_ENV_SCRIPT"; exit 1; fi
+          echo "TRACE: All environment checks passed."
 
-          # 6. Sourcing Zephyr Environment
-          echo "--- 6. Sourcing Zephyr Environment Variables ---"
+          # 5. Sourcing Zephyr Environment (Error Handled Inline)
+          echo "--- 5. Sourcing Zephyr Environment Variables ---"
           . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 7. Build Setup and CMake Execution
-          echo "--- 7. Starting Final CMake Build ---"
+          # 6. Build Setup and CMake Execution
+          echo "--- 6. Starting Final CMake Build ---"
           
-          # --- Path Definitions ---
-          APP_REPO_DIR="$ZMK_REPO_ROOT/app"
+          # --- Runtime Path Definitions ---
           BUILD_DIR="$APP_REPO_DIR/build"
-          APP_SOURCE_DIR="$APP_REPO_DIR" # Start by assuming CMakeLists.txt is here
+          APP_SOURCE_DIR="$APP_REPO_DIR" # Initial assumption
           
-          # 8. Backup Plan: Check for nested 'app' directory
+          # 7. BACKUP PLAN: Check for nested 'app' directory (where CMakeLists.txt resides)
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
              echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
              APP_SOURCE_DIR="$APP_REPO_DIR/app"
           elif [ ! -f "$APP_REPO_DIR/CMakeLists.txt" ]; then
-             echo "FATAL: Cannot find CMakeLists.txt in either '$ZMK_REPO_ROOT/app' or '$ZMK_REPO_ROOT/app/app'."
-             ls -l "$ZMK_REPO_ROOT/app"
+             echo "FATAL: Cannot find CMakeLists.txt in either '$APP_REPO_DIR' or '$APP_REPO_DIR/app'."
+             ls -l "$APP_REPO_DIR"
              exit 1
           else
              echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
           fi
 
-          # 9. Execute CMake
+          # 8. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           
-          # A. CMake Configure Step (⚠️ FIX: Removing BOARD_ROOT to rely on ZMK's internal shield pathing)
+          # A. CMake Configure Step (Definitive fix for all path issues)
           cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nrf52840dk_nrf52840 \
@@ -91,11 +98,12 @@ jobs:
             -DZEPHYR_BASE="$ZEPHYR_DIR" \
             -DCMAKE_PREFIX_PATH="$ZEPHYR_DIR" \
             -DZEPHYR_DIR="$ZEPHYR_DIR" \
-            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
+            -DBOARD_ROOT="$APP_REPO_DIR" \
+            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed. Review logs for board/shield errors."; exit 1; }
             
-          # B. CMake Build Execution Step
+          # B. CMake Build Execution Step (Error Handled Inline)
           echo "TRACE: Executing build in directory: $BUILD_DIR"
-          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
+          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Compilation error."; exit 1; }
           
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
