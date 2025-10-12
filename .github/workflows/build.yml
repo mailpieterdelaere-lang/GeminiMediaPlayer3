@@ -1,4 +1,4 @@
-name: ZMK Resilient West Dependency Build (Finalized)
+name: ZMK Resilient West Dependency Build (Overlay Diagnostic)
 
 on:
   push:
@@ -22,57 +22,61 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Correct File Handling
+      - name: ⚙️ West-Managed Build with Overlay Diagnostics
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
-          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone" # Temporary ZMK application source clone
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace" # The West workspace root (where build occurs)
+          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          OVERLAY_FILE="$GITHUB_WORKSPACE/config/nice_nano_v2.overlay"
           
-          # --- 1. Tool Validation ---
+          # --- 1-4. West Setup (Same as previous successful steps) ---
           echo "--- 1. Validating West Tool ---"
           command -v west || { echo "FATAL: 'west' tool not found in container path."; exit 1; }
           
-          # --- 2. Clone ZMK and Initialize West Workspace ---
           echo "--- 2. Cloning ZMK Application Source ---"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
 
-          echo "--- 3. Initializing West Workspace with Correct Manifest Path ---"
-          mkdir -p "$ZMK_ROOT" || { echo "FATAL: Failed to create ZMK workspace directory."; exit 1; }
-          
-          # 🚀 FIX 1 (West Init): Correctly points to the manifest file inside the cloned repository's 'app' folder.
+          echo "--- 3. Initializing West Workspace ---"
+          mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || { 
             echo "FATAL: West initialization failed."
             exit 1 
           }
 
-          # Enter the newly initialized workspace directory
-          cd "$ZMK_ROOT" || { echo "FATAL: Failed to enter ZMK workspace."; exit 1; }
+          cd "$ZMK_ROOT"
           
-          # --- 4. Update Dependencies ---
-          echo "--- 4. Updating Dependencies via West (Cloning Zephyr, MCUBoot, etc.) ---"
-          west update || { echo "FATAL: West update failed. Dependency cloning failed."; exit 1; }
+          echo "--- 4. Updating Dependencies via West ---"
+          west update || { echo "FATAL: West update failed." ; exit 1; }
           
-          # --- 5. Prepare Application and Custom Configuration ---
-          echo "--- 5. Preparing Application Source and Custom Configuration ---"
+          # --- 5. Prepare Application and Diagnostics ---
+          echo "--- 5. Preparing Application Source and Diagnostics ---"
           
-          # Create the app directory in the workspace
-          mkdir -p "$ZMK_ROOT/app" || { echo "FATAL: Failed to create app directory in workspace."; exit 1; }
-          
-          # 🚀 FIX 2 (Source Copy): Copies the CONTENTS of the NESTED 'app' folder (which contains CMakeLists.txt)
-          # into the workspace's build folder. This solves the "doesn't contain a CMakeLists.txt" error.
+          # Copy ZMK app contents and custom files
+          mkdir -p "$ZMK_ROOT/app"
           if [ -d "$ZMK_CLONE_DIR/app" ]; then
              cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
           else
-             echo "FATAL: ZMK 'app' source directory not found in clone. Repository structure is unexpected."
+             echo "FATAL: ZMK 'app' source directory not found in clone."
              exit 1
           fi
           
-          # Copy custom config files to the application source location
-          if [ -f "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" ]; then
-             cp "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
-             echo "TRACE: Copied custom nice_nano_v2.overlay into application source."
+          # Copy custom config files and RUN DIAGNOSTICS
+          if [ -f "$OVERLAY_FILE" ]; then
+             cp "$OVERLAY_FILE" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
+             
+             # 🔍 NEW DIAGNOSTIC STEP: Log the contents of the file that is causing the error
+             echo "--- DIAGNOSTIC: nice_nano_v2.overlay CONTENTS ---"
+             cat "$ZMK_ROOT/app/nice_nano_v2.overlay"
+             echo "--- END DIAGNOSTIC ---"
+             
+             # NEW ERROR HANDLING
+             if grep -q "&kscan0" "$ZMK_ROOT/app/nice_nano_v2.overlay"; then
+                 echo "FATAL: Overlay contains the incorrect alias '&kscan0' which caused the last three failures."
+                 echo "Please replace it with the corrected structure (kscan_0: kscan_0 { ... }) provided in the previous response."
+                 exit 1
+             fi
           else
              echo "WARNING: nice_nano_v2.overlay not found in config. Proceeding with default settings."
           fi
@@ -82,7 +86,6 @@ jobs:
           ZEPHYR_ENV_SCRIPT="$ZMK_ROOT/zephyr/zephyr-env.sh"
           if [ -f "$ZEPHYR_ENV_SCRIPT" ]; then
              . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
-             echo "TRACE: Zephyr environment sourced successfully."
           else
              echo "FATAL: zephyr-env.sh script not found."
              exit 1
@@ -91,7 +94,6 @@ jobs:
           # --- 7. Build and Configure ---
           echo "--- 7. Starting Final West Build ---"
           
-          # Use 'west build' targeting the app directory and the nice_nano_v2 board.
           west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
             echo "FATAL: West build failed. Compilation or DTS configuration error."
             exit 1
