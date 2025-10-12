@@ -22,7 +22,7 @@ jobs:
 
       # NEW WORKAROUND: Use zmk-setup-action to handle all dependencies
       - name: ⚙️ Set up ZMK Environment
-        uses: zmkfirmware/zmk-setup-action@v2 
+        uses: zmkfirmware/zmk-setup-action@main
         # This replaces manual west init/update and sources zephyr-env.sh for you.
 
       # The Debug step is now obsolete as the action should guarantee the files exist.
