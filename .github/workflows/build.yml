@@ -9,35 +9,37 @@ on:
 
 jobs:
   build:
+    # Use the official ZMK Docker image
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
     runs-on: ubuntu-latest
     
+    # RESOLUTION 2: Explicitly grant permissions to resolve potential token/access issues 
+    # when fetching external actions and content.
+    permissions:
+      contents: read 
+      
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 
 
-      # NEW WORKAROUND: Use zmk-setup-action to handle all dependencies
+      # RESOLUTION 1: Use the correct, maintained path for the setup action.
+      # This replaces all manual 'west init', 'west update', and 'source zephyr-env.sh' steps.
       - name: ⚙️ Set up ZMK Environment
-        uses: zmkfirmware/zmk-setup-action@main
-        # This replaces manual west init/update and sources zephyr-env.sh for you.
-
-      # The Debug step is now obsolete as the action should guarantee the files exist.
-      # We skip it for a cleaner build but leave it commented for future debugging.
-      #- name: 🔍 DEBUG: Check Workspace Directory Structure
-      #  ...
+        uses: zmkfirmware/zmk-helpers/actions/setup-zmk@main 
+        # This action clones ZMK, runs west update, and sources the environment correctly.
 
       - name: ⚙️ Build ZMK Firmware (Simplified via Action)
-        # Note the '-s zmk/app' argument is used to specify the source directory.
+        # The environment is already sourced, so we run west build directly.
         run: |
           west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output."; exit 1; }
 
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
-        if: success()
+        if: success() # Only upload if the build succeeded
         with:
           name: zmk-firmware
           # The artifact path remains relative to the workspace root
