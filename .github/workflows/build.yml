@@ -65,7 +65,7 @@ jobs:
           # --- Path Definitions ---
           APP_REPO_DIR="$ZMK_REPO_ROOT/app"
           BUILD_DIR="$APP_REPO_DIR/build"
-          APP_SOURCE_DIR="$APP_REPO_DIR"
+          APP_SOURCE_DIR="$APP_REPO_DIR" # Start by assuming CMakeLists.txt is here
           
           # 8. Backup Plan: Check for nested 'app' directory
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
@@ -82,7 +82,7 @@ jobs:
           # 9. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           
-          # A. CMake Configure Step (FINAL FIX: Adding BOARD_ROOT to find ZMK custom shields)
+          # A. CMake Configure Step (⚠️ FIX: Removing BOARD_ROOT to rely on ZMK's internal shield pathing)
           cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nrf52840dk_nrf52840 \
@@ -91,7 +91,6 @@ jobs:
             -DZEPHYR_BASE="$ZEPHYR_DIR" \
             -DCMAKE_PREFIX_PATH="$ZEPHYR_DIR" \
             -DZEPHYR_DIR="$ZEPHYR_DIR" \
-            -DBOARD_ROOT="$APP_REPO_DIR" \
             -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
