@@ -23,6 +23,9 @@ jobs:
           fetch-depth: 0 
           
       - name: ⚙️ Manual Git Clone and Environment Setup (Final Working Sourcing)
+        # We must explicitly use 'bash' because the 'zephyr-env.sh' script contains 
+        # advanced shell substitutions not supported by the default 'dash' shell.
+        shell: bash
         run: |
           # --- Dependencies and Versions ---
           ZEPHYR_REVISION="v2.6.0" 
@@ -31,35 +34,33 @@ jobs:
 
           # 1. Create the base ZMK structure
           echo "--- 1. Creating target directories ---"
-          mkdir -p $GITHUB_WORKSPACE/zmk/zephyr
-          mkdir -p $GITHUB_WORKSPACE/zmk/app
-          mkdir -p $GITHUB_WORKSPACE/zmk/bootloader/mcuboot
+          mkdir -p "$GITHUB_WORKSPACE/zmk/zephyr"
+          mkdir -p "$GITHUB_WORKSPACE/zmk/app"
+          mkdir -p "$GITHUB_WORKSPACE/zmk/bootloader/mcuboot"
 
           # 2. Clone ZMK App
           echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
-          git clone --depth 1 --branch $ZMK_REVISION https://github.com/zmkfirmware/zmk.git $GITHUB_WORKSPACE/zmk/app || exit 1
+          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$GITHUB_WORKSPACE/zmk/app" || exit 1
           
           # 3. Clone Zephyr (The main RTOS)
           echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
-          git clone --depth 1 --branch $ZEPHYR_REVISION https://github.com/zephyrproject-rtos/zephyr.git $GITHUB_WORKSPACE/zmk/zephyr || exit 1
+          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$GITHUB_WORKSPACE/zmk/zephyr" || exit 1
 
           # 4. Clone MCUBoot (Required Bootloader)
           echo "--- 4. Cloning MCUBoot (Path: zmk/bootloader/mcuboot) ---"
-          git clone --depth 1 --branch $MCUB_REVISION https://github.com/mcu-tools/mcuboot.git $GITHUB_WORKSPACE/zmk/bootloader/mcuboot || exit 1
+          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$GITHUB_WORKSPACE/zmk/bootloader/mcuboot" || exit 1
 
-          # 5. Export Zephyr Environment (THE FINAL FIX)
-          # We use the direct environment sourcing command, which is guaranteed to work 
-          # because the file is now confirmed to exist.
+          # 5. Sourcing Zephyr Environment (FINAL FIX: This now runs under bash)
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. Final Path Error."; exit 1; }
+          # Sourcing with '.' is critical to keep the variables in the current shell session
+          . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed. Check script syntax."; exit 1; }
 
           # 6. Build
           echo "--- 6. Starting Final West Build ---"
           # Navigate into the ZMK application root for the build command
-          cd $GITHUB_WORKSPACE/zmk/app || exit 1
+          cd "$GITHUB_WORKSPACE/zmk/app" || exit 1
 
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: Build failed. Check config and keymaps."; exit 1; }          
-      - name: ⬆️ Upload Artifacts
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG="$GITHUB_WORKSPACE/config" || { echo "FATAL: Build failed. Review CMake output for compilation errors."; exit 1; }      - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
