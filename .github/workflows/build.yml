@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    # Use the ZMK build container
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -22,30 +23,46 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: 📦 Initialize and Update West Workspace (Final Attempt)
-        # This step uses the correct syntax and must place the dependencies correctly.
+      - name: 📦 Initialize, Locate, and Relocate Dependencies 🛠️
+        # This step guarantees the zmk folder is moved to the workspace root.
         run: |
-          echo "--- Initializing West Workspace ---"
+          echo "--- 1. Initializing West Workspace (Standard Syntax) ---"
           west init -l config || { echo "FATAL: west init failed. Check manifest errors."; exit 1; }
+          west update || { echo "FATAL: west update failed. Check access/manifest."; exit 1; }
           
-          echo "--- Updating Dependencies ---"
-          west update || { echo "FATAL: west update failed. Check repository access/manifest."; exit 1; }
+          echo "--- 2. Diagnosing File Location ---"
+          # Search the entire workspace for the crucial file
+          ZMK_ENV_PATH=$(find $GITHUB_WORKSPACE -name "zephyr-env.sh" -print -quit)
           
+          if [ -z "$ZMK_ENV_PATH" ]; then
+            echo "FATAL: zephyr-env.sh was NOT found anywhere after west update."
+            exit 1
+          fi
+          
+          # Calculate the base ZMK directory path (removing the trailing /zephyr/zephyr-env.sh)
+          # We use dirname twice to go up to the ZMK source directory
+          ZMK_SRC_DIR=$(dirname $(dirname "$ZMK_ENV_PATH"))
+          echo "TRACE: Found ZMK source directory at: $ZMK_SRC_DIR"
+          
+          # Only relocate if the ZMK source is not already at the expected location
+          if [ "$ZMK_SRC_DIR" != "$GITHUB_WORKSPACE/zmk" ]; then
+            echo "--- 3. Relocating Files to Expected Path: $GITHUB_WORKSPACE/zmk ---"
+            
+            # Use rsync for a reliable recursive copy
+            rsync -a "$ZMK_SRC_DIR/" "$GITHUB_WORKSPACE/zmk" || { echo "FATAL: Failed to copy ZMK files."; exit 1; }
+            
+            # Trace: Confirm the copy operation
+            echo "TRACE: Confirming new path contents ($GITHUB_WORKSPACE/zmk/zephyr/)"
+            ls -la "$GITHUB_WORKSPACE/zmk/zephyr/" || { echo "FATAL: Relocation failed. Target directory is missing."; exit 1; }
+            
+            echo "Relocation successful."
+          else
+            echo "TRACE: ZMK folder already correctly placed. No relocation needed."
+          fi
+
       - name: ⚙️ Source Environment & Build Firmware
-        # This step will confirm if west init/update was finally successful.
+        # This step now runs with the guaranteed knowledge that the path exists.
         run: |
           # 1. Source the environment script using the absolute workspace path
           echo "--- Sourcing Zephyr Environment ---"
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. West update did not work."; exit 1; }
-          
-          # 2. Change directory and run the standard build
-          echo "--- Starting West Build ---"
-          cd zmk/app || { echo "FATAL: zmk/app directory not found."; exit 1; }
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output."; exit 1; }
-
-      - name: ⬆️ Upload Artifacts
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: zmk-firmware
-          path: zmk/app/build/zephyr/zmk.uf2
+          . $GITHUB_WORKSPACE/zmk
