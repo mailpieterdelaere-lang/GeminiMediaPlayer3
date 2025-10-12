@@ -22,10 +22,11 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone, Setup, and Build
+      - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
         shell: bash
         run: |
           # --- Configuration Variables ---
+          # ⚠️ FIX: Reverting Zephyr to v2.6.0 (ZMK v0.3 baseline)
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
@@ -51,21 +52,8 @@ jobs:
 
           # 5. 🔍 VALIDATION CHECK: Verify critical Zephyr paths and files
           echo "--- 5. VALIDATING ZEPHYR ENVIRONMENT ---"
-          
-          # Check 1: Zephyr directory exists
-          if [ ! -d "$ZEPHYR_DIR" ]; then
-              echo "FATAL: Zephyr base directory not found at $ZEPHYR_DIR"
-              exit 1
-          fi
-          
-          # Check 2: zephyr-env.sh exists
-          if [ ! -f "$ZEPHYR_ENV_SCRIPT" ]; then
-              echo "FATAL: Zephyr environment script not found at $ZEPHYR_ENV_SCRIPT"
-              echo "Diagnostic: Listing contents of $ZEPHYR_DIR"
-              ls -l "$ZEPHYR_DIR"
-              exit 1
-          fi
-          
+          if [ ! -d "$ZEPHYR_DIR" ]; then echo "FATAL: Zephyr base directory not found at $ZEPHYR_DIR"; exit 1; fi
+          if [ ! -f "$ZEPHYR_ENV_SCRIPT" ]; then echo "FATAL: Zephyr environment script not found at $ZEPHYR_ENV_SCRIPT"; ls -l "$ZEPHYR_DIR"; exit 1; fi
           echo "TRACE: Zephyr environment checks passed."
 
           # 6. Sourcing Zephyr Environment
@@ -78,7 +66,7 @@ jobs:
           # --- Path Definitions ---
           APP_REPO_DIR="$ZMK_REPO_ROOT/app"
           BUILD_DIR="$APP_REPO_DIR/build"
-          APP_SOURCE_DIR="$APP_REPO_DIR" # Start by assuming CMakeLists.txt is here
+          APP_SOURCE_DIR="$APP_REPO_DIR"
           
           # 8. Backup Plan: Check for nested 'app' directory
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
@@ -95,10 +83,10 @@ jobs:
           # 9. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           
-          # A. CMake Configure Step (Defines all necessary paths explicitly)
+          # A. CMake Configure Step (⚠️ FIX: Using generic nRF52840 board definition)
           cmake -B "$BUILD_DIR" \
             -GNinja \
-            -DBOARD=nice_nano_v2 \
+            -DBOARD=nrf52840dk_nrf52840 \
             -DSHIELD=crkbd_left \
             -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
             -DZEPHYR_BASE="$ZEPHYR_DIR" \
