@@ -1,4 +1,4 @@
-name: ZMK Build:Standard Shield Configuration (Final Corrected YAML)
+name: ZMK Build: Standard Shield Configuration (Manual Shield Inclusion)
 
 on:
   push:
@@ -22,38 +22,31 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Setup West and Clone ZMK
+      - name: ⚙️ West Setup and Configuration
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
+          BOARD_NAME="nice_nano_v2"
+          SHIELD_NAME="mediapad"
+          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
           
-          echo "--- 1. Initializing and Updating West Workspace ---"
+          # 1. Initialize and Update West Workspace
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
           cd "$ZMK_ROOT"
           west update || exit 1
           
-      - name: 📝 Prepare Application and Apply ALL Fixes
-        shell: bash
-        run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
-          BOARD_NAME="nice_nano_v2"
-          SHIELD_NAME="mediapad"
-          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
-
-          echo "--- 2. Preparing Application Source and Configuration ---"
-          
-          # Copy ZMK app contents
+          # 2. Prepare Application Source
           mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_ROOT/app_clone/app/"* "$ZMK_ROOT/app" || exit 1
-
+          
           # 3. Create Shield Directory and Copy/Patch Files
-          echo "--- 3. Setting up Shield Configuration and Applying Final Fixes ---"
+          echo "--- Setting up Shield Configuration and Applying Fixes ---"
           mkdir -p "$SHIELD_DIR"
           
           # Copy Keymap, Overlay, and create config file
@@ -61,29 +54,23 @@ jobs:
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$SHIELD_DIR/$SHIELD_NAME.overlay" || { echo "FATAL: Overlay file missing."; exit 1; }
           echo "CONFIG_ZMK_KEYMAP_NAME=\"$SHIELD_NAME\"" > "$SHIELD_DIR/$SHIELD_NAME.conf"
           
-          # **FINAL C COMPILATION FIX**: Patch the overlay with the missing rows/columns properties
+          # Patch the overlay (Critical for C compilation)
           OVERLAY_DEST="$SHIELD_DIR/$SHIELD_NAME.overlay"
           if ! grep -q "rows" "$OVERLAY_DEST"; then
               echo "Patching overlay with missing rows=<1> and columns=<3> properties..."
-              # Target the kscan_0 node and insert rows/columns properties
-              # This sed command is essential to fix the C compilation error.
               sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$OVERLAY_DEST"
           fi
           
-      - name: 🔨 Build Application
-        shell: bash
-        run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          BOARD_NAME="nice_nano_v2"
-          SHIELD_NAME="mediapad"
-
+          # 🚀 CRITICAL FIX: Manually register the custom shield path in CMake
+          # This forces ZMK to look for files in the newly created shield directory.
+          echo "--- CRITICAL FIX: Registering Custom Shield Path in CMakeLists.txt ---"
+          echo "list(APPEND ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/boards/shields)" >> "$ZMK_ROOT/app/CMakeLists.txt"
+          
           # 4. Source Zephyr Environment
-          echo "--- 4. Sourcing Zephyr Environment Variables ---"
-          cd "$ZMK_ROOT"
-          . "./zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 5. Build Application
-          echo "--- 5. Starting Final West Build ---"
+          echo "--- Starting Final West Build ---"
           west build -b $BOARD_NAME "$ZMK_ROOT/app" -- -DSHIELD=$SHIELD_NAME || { 
             echo "FATAL: West build failed."
             exit 1
