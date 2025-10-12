@@ -2,18 +2,16 @@
 
 / {
     chosen {
-        // 1. Point the system to the kscan node we define below
-        zmk,kscan = &kscan_0;
+        zmk,kscan = &kscan_0; // Point to the node we define
     };
 
-    kscan_0: kscan_0 { // 2. CREATE the node using the label kscan_0
+    kscan_0: kscan_0 { // Create the node with the label kscan_0
         compatible = "zmk,kscan-direct-gpios";
         label = "KSCAN_0";
         
-        // 3. Use the confirmed working numerical value '3' 
-        // which represents (GPIO_ACTIVE_LOW | GPIO_PULL_UP).
-        direct-gpios = <&pro_micro_d 2 3>, // D2 (Active Low, Pull Up)
-                       <&pro_micro_d 4 3>, // D4 (Active Low, Pull Up)
-                       <&pro_micro_d 6 3>; // D6 (Active Low, Pull Up)
+        // Use the numerical flag '3' for (GPIO_ACTIVE_LOW | GPIO_PULL_UP)
+        direct-gpios = <&pro_micro_d 2 3>, // D2
+                       <&pro_micro_d 4 3>, // D4
+                       <&pro_micro_d 6 3>; // D6
     };
 };
