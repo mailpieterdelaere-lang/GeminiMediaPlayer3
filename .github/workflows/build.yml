@@ -44,11 +44,8 @@ jobs:
 
           # 2. Clone Dependencies (Error Handled Inline)
           echo "--- 2. Cloning Dependencies ---"
-          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK clone failed."; exit 1; }
-          
-          # ⚠️ FIX: Initialize ZMK submodules to pull in crucial board definitions and dependencies.
-          echo "--- 2a. Initializing ZMK Submodules ---"
-          (cd "$APP_REPO_DIR" && git submodule update --init) || { echo "FATAL: ZMK submodule initialization failed."; exit 1; }
+          # ⚠️ FINAL FIX: Use --recursive to ensure all shields and board definitions are fetched.
+          git clone --depth 1 --branch "$ZMK_REVISION" --recursive https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK clone failed."; exit 1; }
           
           git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZEPHYR_DIR" || { echo "FATAL: Zephyr clone failed."; exit 1; }
           git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: MCUBoot clone failed."; exit 1; }
