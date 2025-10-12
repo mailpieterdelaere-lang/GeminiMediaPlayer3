@@ -1,4 +1,4 @@
-name: ZMK Reusable Build
+name: ZMK Resilient Build
 
 on:
   push:
@@ -9,32 +9,42 @@ on:
 
 jobs:
   build:
-    # Use the official ZMK Docker image for environment stability
+    # Use the ZMK build container
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
     runs-on: ubuntu-latest
-    
     permissions:
       contents: read
-    
+      
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 
-          # Ensure submodules (ZMK/Zephyr) are checked out recursively. 
-          # This replaces the need for 'west update' in this step.
-          submodules: recursive 
-
-      - name: ⚙️ Source Environment & Build Firmware
-        # The environment sourcing path is now *known* because submodules were checked out recursively.
-        run: |
-          echo "--- Sourcing Zephyr Environment ---"
-          # Source the environment directly from the submodule path
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          # Ensure Git is configured for the workspace
           
-          # Change directory and run the standard build
+      - name: 📦 Initialize and Update West Workspace (Reintroduced)
+        # This step correctly checks out zmk/zephyr/zephyr-env.sh
+        run: |
+          echo "--- Initializing West Workspace ---"
+          # Initialize west from the config directory location
+          west init -l config || { echo "FATAL: west init failed."; exit 1; }
+          
+          echo "--- Updating Dependencies (Zephyr, ZMK, etc.) ---"
+          # Update dependencies, which places the zmk/zephyr folder at the root
+          west update || { echo "FATAL: west update failed."; exit 1; }
+          
+          echo "--- West initialization complete. zmk/zephyr/ should now exist. ---"
+          
+      - name: ⚙️ Source Environment & Build Firmware
+        # This step now runs AFTER west update has confirmed to run successfully
+        run: |
+          # 1. Source the environment script using the absolute workspace path
+          echo "--- Sourcing Zephyr Environment ---"
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. West update did not work."; exit 1; }
+          
+          # 2. Change directory and run the standard build
           echo "--- Starting West Build ---"
           cd zmk/app || { echo "FATAL: zmk/app directory not found."; exit 1; }
           west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed."; exit 1; }
