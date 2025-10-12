@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    # Uses the official ZMK build environment container
+    # ⚠️ FIX: Correct YAML indentation for 'container' and 'image'
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -23,8 +23,8 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone, Setup, and Build
-        # Use 'bash' shell to correctly source zephyr-env.sh and execute complex scripts.
+      - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
+        # ⚠️ FIX: Use 'bash' shell to solve the "Bad substitution" error in zephyr-env.sh.
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -39,7 +39,7 @@ jobs:
           mkdir -p "$ZMK_REPO_ROOT/app"
           mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot"
 
-          # 2. Clone Dependencies
+          # 2. Clone Dependencies (Fixed branches/tags are used)
           echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
           git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_REPO_ROOT/app" || exit 1
           echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
@@ -49,36 +49,31 @@ jobs:
 
           # 5. Sourcing Zephyr Environment
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
-          # Sourcing is now safe because the paths exist and the shell is bash.
           . "$ZMK_REPO_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Build Setup and CMake Execution
+          # 6. Build Setup and CMake Execution (Uses absolute paths from workspace root)
           echo "--- 6. Starting Final CMake Build ---"
           
           # --- Path Definitions ---
-          APP_REPO_DIR="$ZMK_REPO_ROOT/app" # The cloned ZMK repository
+          APP_REPO_DIR="$ZMK_REPO_ROOT/app"
           BUILD_DIR="$APP_REPO_DIR/build"
+          APP_SOURCE_DIR="$APP_REPO_DIR" # Start by assuming CMakeLists.txt is here
           
-          # Determine the true source directory where CMakeLists.txt resides
-          APP_SOURCE_DIR="$APP_REPO_DIR"
-
           # 7. Backup Plan: Check for nested 'app' directory (where the error was likely hitting)
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
              echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
              APP_SOURCE_DIR="$APP_REPO_DIR/app"
           elif [ ! -f "$APP_REPO_DIR/CMakeLists.txt" ]; then
              echo "FATAL: Cannot find CMakeLists.txt in either '$ZMK_REPO_ROOT/app' or '$ZMK_REPO_ROOT/app/app'."
-             echo "Listing files in $ZMK_REPO_ROOT/app for diagnostic check:"
              ls -l "$ZMK_REPO_ROOT/app"
              exit 1
           else
              echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
           fi
 
-         # 8. Execute CMake
+          # 8. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
-          echo "TRACE: Configuring CMake from directory: $GITHUB_WORKSPACE"
-
+          
           # A. CMake Configure Step (FINAL FIX: Explicitly define ZEPHYR_BASE for CMake)
           cmake -B "$BUILD_DIR" \
             -GNinja \
@@ -90,4 +85,4 @@ jobs:
             
           # B. CMake Build Execution Step
           echo "TRACE: Executing build in directory: $BUILD_DIR"
-          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
+          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit
