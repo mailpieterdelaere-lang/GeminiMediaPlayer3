@@ -42,16 +42,14 @@ jobs:
       # The original failing step would be here, but we'll use the fixed command below
 
       - name: ⚙️ Build ZMK Firmware (Resolution Applied)
-        # This step now uses the correct directory structure found in most ZMK user-configs.
-        # This is the resolved step that anticipates the "No such file" failure.
         run: |
-          # 1. Source the environment script from the correct, known location.
-          #    In ZMK user config repos, the main ZMK code (which holds the Zephyr dependency) 
-          #    is typically checked out at the root level, not inside 'config/'.
-          #
-          # Resolution applied: We source the environment setup script from the standard 
-          # ZMK/Zephyr module location (which should be at the workspace root).
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
+          # 1. Change directory into the ZMK app directory. 
+          # This makes the shell's CWD correct for the Zephyr/West build system.
+          cd zmk/app
+          
+          # 2. Run the actual build command from the zmk/app directory. 
+          # Note: We now reference the config directory using the correct path.
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config
           
           # 2. Run the actual build command
           west build -b nice_nano_v2 -- -DSHIELD=crkbd_left
