@@ -1,4 +1,4 @@
-name: ZMK Build:Standard Shield Configuration (Manual Shield Inclusion)
+name: ZMK Build: Direct Shield Inclusion (Final Attempt)
 
 on:
   push:
@@ -61,10 +61,11 @@ jobs:
               sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$OVERLAY_DEST"
           fi
           
-          # 🚀 CRITICAL FIX: Manually register the custom shield path in CMake
-          # This forces ZMK to look for files in the newly created shield directory.
-          echo "--- CRITICAL FIX: Registering Custom Shield Path in CMakeLists.txt ---"
-          echo "list(APPEND ZEPHYR_EXTRA_MODULES ${CMAKE_CURRENT_SOURCE_DIR}/boards/shields)" >> "$ZMK_ROOT/app/CMakeLists.txt"
+          # 🚀 CRITICAL FIX: Explicitly include the shield directory in the CMake build
+          # We force ZMK/Zephyr to look into our custom boards folder.
+          echo "--- CRITICAL FIX: Forcing Custom Shield Directory Inclusion in CMakeLists.txt ---"
+          # This should force CMake to discover the contents of the shields folder created by the script.
+          echo "add_subdirectory(boards)" >> "$ZMK_ROOT/app/CMakeLists.txt"
           
           # 4. Source Zephyr Environment
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
@@ -82,17 +83,3 @@ jobs:
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Download Final Firmware Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: zmk-firmware
-          path: ./firmware-artifacts
-          
-      - name: 📦 Display Artifact Contents
-        run: ls -lR ./firmware-artifacts
