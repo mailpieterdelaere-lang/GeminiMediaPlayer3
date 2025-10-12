@@ -1,4 +1,4 @@
-name: ZMK Final Working Build (Execution)
+name: ZMK Build: Standard Shield Configuration (Final Attempt)
 
 on:
   push:
@@ -22,66 +22,67 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Final Configuration
+      - name: ⚙️ West-Managed Build with Standard Configuration
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          OVERLAY_FILE="$GITHUB_WORKSPACE/config/nice_nano_v2.overlay"
-          KEYMAP_FILE="$GITHUB_WORKSPACE/config/mediapad3.keymap" 
-
-          # --- 1-4. West Setup ---
-          echo "--- 1. Initializing and Updating West Workspace ---"
-          command -v west || { echo "FATAL: 'west' tool not found."; exit 1; }
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
-          mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || { echo "FATAL: West initialization failed."; exit 1; }
-          cd "$ZMK_ROOT"
-          west update || { echo "FATAL: West update failed."; exit 1; }
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" # Your local config folder
+          BOARD_NAME="nice_nano_v2"
           
-          # --- 5. Prepare Application and Copy Final Files ---
-          echo "--- 2. Copying Application Source and Final Config Files ---"
+          # --- 1-4. West Setup (Skipped logging, assumed success) ---
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
+          mkdir -p "$ZMK_ROOT"
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
+          cd "$ZMK_ROOT"
+          west update || exit 1
+          
+          # --- 5. Prepare Application and Apply ALL Fixes ---
+          echo "--- 1. Copying Application Source and Configuring Files ---"
           
           # Copy ZMK app contents
           mkdir -p "$ZMK_ROOT/app"
-          if [ -d "$ZMK_CLONE_DIR/app" ]; then
-             cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
-          else
-             echo "FATAL: ZMK 'app' source directory not found in clone."
-             exit 1
-          fi
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
 
-          # Copy and verify Overlay (must contain rows=<1> and columns=<3>)
-          KEYMAP_DEST="$ZMK_ROOT/app/nice_nano_v2.keymap"
-          if [ -f "$OVERLAY_FILE" ]; then
-             cp "$OVERLAY_FILE" "$ZMK_ROOT/app/nice_nano_v2.overlay"
-             echo "TRACE: Copied final overlay with assumed matrix size fix."
-          else
-             echo "FATAL: nice_nano_v2.overlay file not found at $OVERLAY_FILE."
-             exit 1
+          # --- FIX 1: Ensure the Keymap loads by moving/renaming the file ---
+          # We use the board name as the shield name for simplicity
+          SHIELD_NAME="mediapad" # We'll call the shield "mediapad"
+          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
+          mkdir -p "$SHIELD_DIR"
+          
+          # Copy Keymap as shield definition file
+          cp "$CUSTOM_CONFIG_DIR/mediapad3.keymap" "$SHIELD_DIR/$SHIELD_NAME.keymap" || { echo "FATAL: Keymap file missing or failed copy."; exit 1; }
+          echo "TRACE: Keymap copied to $SHIELD_DIR/$SHIELD_NAME.keymap"
+          
+          # Create a dummy config file to tell ZMK to enable our kscan config
+          echo "CONFIG_ZMK_KEYMAP_NAME=\"$SHIELD_NAME\"" > "$SHIELD_DIR/$SHIELD_NAME.conf"
+          echo "TRACE: Created shield config file."
+          
+          # --- FIX 2: Apply the Overlay Fix (Missing rows/columns) ---
+          
+          # Copy the overlay to the SHIELD directory for standard shield processing
+          OVERLAY_DEST="$SHIELD_DIR/$SHIELD_NAME.overlay"
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$OVERLAY_DEST" || { echo "FATAL: Overlay file failed copy."; exit 1; }
+          
+          # PATCH: Force the rows and columns properties to resolve compilation errors
+          if ! grep -q "rows" "$OVERLAY_DEST"; then
+              echo "Patching overlay with missing rows=<1> and columns=<3> properties..."
+              sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$OVERLAY_DEST"
           fi
-
-          # Copy and rename Keymap to match board name for auto-discovery
-          if [ -f "$KEYMAP_FILE" ]; then
-             cp "$KEYMAP_FILE" "$KEYMAP_DEST" || { echo "FATAL: Failed to copy keymap file to $KEYMAP_DEST."; exit 1; }
-             echo "TRACE: Copied keymap file to $KEYMAP_DEST."
-          else
-             echo "FATAL: Keymap file not found at $KEYMAP_FILE."
-             exit 1
-          fi
+          echo "TRACE: Overlay copied and patched with matrix size fix."
 
           # --- 6. Source Zephyr Environment ---
-          echo "--- 3. Sourcing Zephyr Environment Variables ---"
+          echo "--- 2. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # --- 7. Build and Configure ---
-          echo "--- 4. Starting Final West Build ---"
+          echo "--- 3. Starting Final West Build (Using SHIELD) ---"
           
-          # Build without the shield flag, relying on auto-discovery of nice_nano_v2.overlay/keymap
-          west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
-            echo "FATAL: West build failed. A final configuration error remains."
+          # Use the shield flag to load our custom files
+          west build -b $BOARD_NAME "$ZMK_ROOT/app" -- -DSHIELD=$SHIELD_NAME || { 
+            echo "FATAL: West build failed."
             exit 1
           }
           
@@ -91,17 +92,3 @@ jobs:
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Download Final Firmware Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: zmk-firmware
-          path: ./firmware-artifacts
-          
-      - name: 📦 Display Artifact Contents
-        run: ls -lR ./firmware-artifacts
