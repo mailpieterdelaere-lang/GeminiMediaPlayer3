@@ -9,20 +9,18 @@ on:
 
 jobs:
   build:
-    # Set permissions for accessing the ZMK main repository and our local content
     permissions:
       contents: read
     
-    # CALL THE REUSABLE WORKFLOW
-    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@main
+    # FINAL RESOLUTION: Use a specific commit SHA instead of 'main' to enforce
+    # fetching the correct file and bypass caching/default branch issues.
+    # *** REPLACE [LATEST_ZMK_SHA_HERE] with the actual SHA ***
+    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@[LATEST_ZMK_SHA_HERE]
     with:
-      # Pass the required parameters to the ZMK build workflow
       board: nice_nano_v2
       shield: crkbd_left
-      # The config-dir is relative to the repository root
       config-dir: config
 
-  # Automatically download the built firmware if the 'build' job succeeds
   artifact:
     needs: build
     runs-on: ubuntu-latest
