@@ -1,37 +1,66 @@
-- name: 📦 Initialize and Relocate Dependencies (Using cp -r)
+name: ZMK Resilient Manual Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+    
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+          
+      - name: ⚙️ Manual Git Clone and Environment Setup (Integrating west Logic)
         run: |
-          echo "--- 1. Initializing West Workspace ---"
-          west init -l config || { echo "FATAL: west init failed."; exit 1; }
-          west update || { echo "FATAL: west update failed. Check access/manifest."; exit 1; }
-          
-          # -------------------------------------------------------------
-          # System Engineer Fix: Force ZMK/Zephyr dependencies into the 
-          # expected $GITHUB_WORKSPACE/zmk path using 'cp -r'.
-          # -------------------------------------------------------------
-          
-          echo "--- 2. Locating and Moving Dependencies (rsync fix) ---"
-          
-          # Check for the main 'zephyr' submodule, which contains the required files.
-          ZEPHYR_DIR="$GITHUB_WORKSPACE/zephyr"
-          ZMK_DIR="$GITHUB_WORKSPACE/zmk"
+          # --- Dependencies and Versions (from your west.yml) ---
+          # NOTE: The Zephyr version is determined by ZMK's west.yml, which is internal.
+          # We'll clone ZMK, then use its internal west to get Zephyr correctly.
 
-          if [ ! -d "$ZEPHYR_DIR" ]; then
-             echo "FATAL: The 'zephyr' directory was not created by west update."
-             exit 1
-          fi
+          ZMK_REPO_URL="https://github.com/zmkfirmware/zmk"
+          ZMK_REVISION="v0.3"    # <-- From your manifest default revision
 
-          echo "TRACE: Found Zephyr dependencies at: $ZEPHYR_DIR"
-
-          # Create the expected target directory
-          mkdir -p "$ZMK_DIR/zephyr"
-
-          # Copy the entire Zephyr folder structure into the expected zmk/ directory.
-          # This creates the target: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
-          echo "TRACE: Copying $ZEPHYR_DIR to $ZMK_DIR/zephyr using cp -r"
-          cp -r "$ZEPHYR_DIR/"* "$ZMK_DIR/zephyr" || { echo "FATAL: Failed to copy ZMK files using cp -r."; exit 1; }
+          # 1. Create the ZMK directory structure and clone ZMK
+          echo "--- Cloning ZMK App into $GITHUB_WORKSPACE/zmk/app ---"
+          mkdir -p $GITHUB_WORKSPACE/zmk/app
+          git clone --depth 1 --branch $ZMK_REVISION $ZMK_REPO_URL $GITHUB_WORKSPACE/zmk/app || exit 1
           
-          # Trace: Confirm the copy operation
-          echo "TRACE: Confirming new path contents ($ZMK_DIR/zephyr/)"
-          ls -la "$ZMK_DIR/zephyr/zephyr-env.sh" || { echo "FATAL: Relocation failed. Target file is missing."; exit 1; }
+          # 2. Use west inside the new zmk/app directory to get its dependencies (Zephyr)
+          echo "--- Running west update inside the cloned ZMK directory ---"
+          cd $GITHUB_WORKSPACE/zmk/app || exit 1
+          # This command uses the ZMK app/west.yml to fetch Zephyr, placing it at $GITHUB_WORKSPACE/zmk/zephyr
+          west update || { echo "FATAL: ZMK dependency fetch failed. Check ZMK repository."; exit 1; }
+
+          # 3. Navigate back to the workspace root for sourcing
+          cd $GITHUB_WORKSPACE
+
+          # 4. Source the environment script (Now guaranteed to exist at zmk/zephyr/...)
+          echo "--- Sourcing Zephyr Environment ---"
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. Check ZMK/Zephyr versions."; exit 1; }
           
-          echo "Relocation successful. ZMK environment is ready."
+          # 5. Build (using west build from the app directory)
+          echo "--- Starting West Build from zmk/app ---"
+          # Navigate back into the application root for the build command
+          cd $GITHUB_WORKSPACE/zmk/app || exit 1
+
+          # Run the standard build command
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output for compilation errors."; exit 1; }
+          
+      - name: ⬆️ Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: zmk-firmware
+          # Path is relative to the directory where 'west build' ran ($GITHUB_WORKSPACE/zmk/app)
+          path: zmk/app/build/zephyr/zmk.uf2
