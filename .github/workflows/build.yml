@@ -1,4 +1,4 @@
-name: ZMK Build: Standard Shield Configuration (Manual Shield Inclusion)
+name: ZMK Build:Standard Shield Configuration (Manual Shield Inclusion)
 
 on:
   push:
