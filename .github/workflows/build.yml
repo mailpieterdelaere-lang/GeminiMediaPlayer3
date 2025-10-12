@@ -9,24 +9,39 @@ on:
 
 jobs:
   build:
+    # Use the official ZMK Docker image for environment stability
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+    
+    runs-on: ubuntu-latest
+    
     permissions:
       contents: read
     
-    # FINAL ATTEMPT: Use the community-standard repository name 'zmk-project/zmk' 
-    # and the latest known workflow file name 'build-user-config.yml'.
-    # This combination resolves most external fetch errors.
-    uses: zmk-project/zmk/.github/workflows/build-user-config.yml@main
-    with:
-      board: nice_nano_v2
-      shield: crkbd_left
-      config-dir: config
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
     steps:
-      - name: ⬇️ Download Artifacts
-        uses: actions/download-artifact@v4
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
         with:
-          name: firmware
-          path: ./firmware-artifacts
+          fetch-depth: 0 
+          # Ensure submodules (ZMK/Zephyr) are checked out recursively. 
+          # This replaces the need for 'west update' in this step.
+          submodules: recursive 
+
+      - name: ⚙️ Source Environment & Build Firmware
+        # The environment sourcing path is now *known* because submodules were checked out recursively.
+        run: |
+          echo "--- Sourcing Zephyr Environment ---"
+          # Source the environment directly from the submodule path
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          
+          # Change directory and run the standard build
+          echo "--- Starting West Build ---"
+          cd zmk/app || { echo "FATAL: zmk/app directory not found."; exit 1; }
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed."; exit 1; }
+
+      - name: ⬆️ Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: zmk-firmware
+          path: zmk/app/build/zephyr/zmk.uf2
