@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    # Uses the official ZMK build environment container
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -22,11 +23,11 @@ jobs:
         with:
           fetch-depth: 0 
           
-     - name: ⚙️ Manual Git Clone and Environment Setup (Final Working CMake Build)
-        # Final fix: Use bash shell for sourcing zephyr-env.sh
+      - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
+        # Final fix: Must use 'bash' shell for sourcing zephyr-env.sh
         shell: bash
         run: |
-          # --- Dependencies and Versions ---
+          # --- Dependencies and Versions (Based on your west.yml's v0.3) ---
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
@@ -51,6 +52,7 @@ jobs:
 
           # 5. Sourcing Zephyr Environment
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
+          # This command sets ZEPHYR_BASE and other necessary variables in the shell session
           . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 6. Build (Replacing 'west build' with direct 'cmake' calls)
@@ -58,7 +60,7 @@ jobs:
           # Navigate into the ZMK application root
           cd "$GITHUB_WORKSPACE/zmk/app" || exit 1
 
-          # A. CMake Configure Step
+          # A. CMake Configure Step: Sets the board, shield, and config directory
           cmake -B build \
             -GNinja \
             -DBOARD=nice_nano_v2 \
@@ -67,24 +69,25 @@ jobs:
             -S . || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
-          cmake --build build || { echo "FATAL: Build execution failed."; exit 1; }          
+          cmake --build build || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
+          
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: zmk-firmware # Name for the artifact
-          path: zmk/app/build/zephyr/zmk.uf2 # Path to the firmware file
+          name: zmk-firmware
+          # The resulting UF2 file is located relative to the 'zmk/app' directory
+          path: zmk/app/build/zephyr/zmk.uf2
 
   artifact:
     needs: build
     runs-on: ubuntu-latest
     
-    # ⚠️ THIS SECTION MUST BE CORRECTLY INDENTED ⚠️
     steps:
       - name: ⬇️ Download Final Firmware Artifact
         uses: actions/download-artifact@v4
         with:
-          name: zmk-firmware # Must match the name used in the upload step
+          name: zmk-firmware # Must match the upload name
           path: ./firmware-artifacts
           
       - name: 📦 Display Artifact Contents
