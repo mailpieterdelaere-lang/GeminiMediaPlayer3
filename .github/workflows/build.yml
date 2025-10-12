@@ -1,4 +1,4 @@
-name: ZMK Resilient West Dependency Build (Final Fixes)
+name: ZMK Final Working Build (Direct Config)
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Final Fixes
+      - name: ⚙️ West-Managed Build with Direct Config
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -52,16 +52,9 @@ jobs:
              exit 1
           fi
 
-          # 🚀 Overlay Fix: We must inject the ROWS and COLUMNS properties.
-          # We assume the user has fixed the &kscan0 issue and is now failing on missing matrix size.
+          # 🚀 Overlay Fix: Copy and apply final matrix size patch to resolve C compilation error.
           if [ -f "$OVERLAY_FILE" ]; then
              cp "$OVERLAY_FILE" "$ZMK_ROOT/app/nice_nano_v2.overlay"
-             echo "--- DIAGNOSTIC: nice_nano_v2.overlay CONTENTS BEFORE FINAL PATCH ---"
-             cat "$ZMK_ROOT/app/nice_nano_v2.overlay"
-             echo "--- END DIAGNOSTIC ---"
-             
-             # PATCH THE FILE with the required properties IF they aren't there.
-             # This is a safe final measure to guarantee the properties are present.
              if ! grep -q "rows" "$ZMK_ROOT/app/nice_nano_v2.overlay"; then
                 echo "Applying final matrix size patch to overlay..."
                 sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$ZMK_ROOT/app/nice_nano_v2.overlay"
@@ -71,25 +64,28 @@ jobs:
              exit 1
           fi
 
-          # Copy keymap file to the expected ZMK location (app/config/)
-          mkdir -p "$ZMK_ROOT/app/config"
+          # 🚀 KEYMAP FIX: Copy keymap file and RENAME it to the expected board name.
+          # We copy it into the application root, which is a common location for automatic discovery.
+          KEYMAP_DEST="$ZMK_ROOT/app/nice_nano_v2.keymap"
           if [ -f "$KEYMAP_FILE" ]; then
-             cp "$KEYMAP_FILE" "$ZMK_ROOT/app/config/mediapad3.keymap" || { echo "FATAL: Failed to copy keymap file."; exit 1; }
-             echo "TRACE: Copied keymap file."
+             cp "$KEYMAP_FILE" "$KEYMAP_DEST" || { echo "FATAL: Failed to copy keymap file to $KEYMAP_DEST."; exit 1; }
+             echo "TRACE: Copied keymap file to $KEYMAP_DEST."
           else
-             echo "WARNING: Keymap file not found at $KEYMAP_FILE. Build will proceed without keymap."
+             echo "FATAL: Keymap file not found at $KEYMAP_FILE."
+             exit 1
           fi
 
           # --- 6. Source Zephyr Environment ---
           echo "--- 6. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # --- 7. Build and Configure ---
-          echo "--- 7. Starting Final West Build ---"
+          # --- 7. Build and Configure (WITHOUT SHIELD) ---
+          echo "--- 7. Starting Final West Build (Without SHIELD Flag) ---"
           
-          # Use -DSHIELD to point to the keymap file.
-          west build -b nice_nano_v2 "$ZMK_ROOT/app" -- -DSHIELD=mediapad3 || { 
-            echo "FATAL: West build failed. Final attempt at compilation error."
+          # 🚀 FINAL BUILD FIX: Remove the problematic -DSHIELD=mediapad3 flag.
+          # The build will now use nice_nano_v2.overlay and nice_nano_v2.keymap automatically.
+          west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
+            echo "FATAL: West build failed. Compilation error after all fixes."
             exit 1
           }
           
@@ -99,3 +95,17 @@ jobs:
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+
+  artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ⬇️ Download Final Firmware Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ./firmware-artifacts
+          
+      - name: 📦 Display Artifact Contents
+        run: ls -lR ./firmware-artifacts
