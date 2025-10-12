@@ -12,9 +12,10 @@ jobs:
     permissions:
       contents: read
     
-    # FINAL CORRECTION: Using a valid SHA (example provided) without brackets.
-    # REPLACE THIS EXAMPLE SHA with the actual current SHA from the ZMK repo.
-    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@f662e73715c0a3258c7414d48512b23a7e583c27
+    # FINAL CORRECTION: Correcting the workflow file name to 'build-user-config.yml'.
+    # This is the most likely cause of the "workflow was not found" error.
+    # REPLACE the example SHA with the actual current SHA from the ZMK repo.
+    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@f662e73715c0a3258c7414d48512b23a7e583c27
     with:
       board: nice_nano_v2
       shield: crkbd_left
