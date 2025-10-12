@@ -1,0 +1,19 @@
+/* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
+
+&kscan0 {
+    compatible = "zmk,kscan-direct-gpios";
+    label = "KSCAN_0";
+    
+    // Define your 3 direct-wired keys on D2, D4, D6
+    // &pro_micro_d is the standard alias for the GPIO controller on nice_nano_v2.
+    direct-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>, // D2
+                   <&pro_micro_d 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>, // D4
+                   <&pro_micro_d 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; // D6
+};
+
+// Ensure the chosen kscan is set to the one we defined.
+/ {
+    chosen {
+        zmk,kscan = &kscan0;
+    };
+};
