@@ -30,19 +30,14 @@ jobs:
           # Then update to pull all modules (including zmk/zephyr)
           west update
 
-      - name: 🔍 DEBUG: Check Workspace Directory Structure (Crucial Step)
-        # This step verifies the existence of the missing file and the CWD.
-        run: |
+      - name: 🔍 DEBUG:Check Workspace Directory Structure (Crucial Step)
+        # Line 33 is likely around here, possibly the 'run:' or the start of the script.
+        run: | 
           echo "--- Current Working Directory (CWD) ---"
           pwd
           
           echo "--- Listing Contents of expected zmk/zephyr/ path ---"
-          # This command will fail if the directory is missing, confirming the failure.
           ls -la zmk/zephyr/ || echo "🚨 ERROR: zmk/zephyr/ directory not found or inaccessible."
-          
-          echo "--- Searching for zephyr-env.sh (Root Cause Check) ---"
-          # Recursively search the entire workspace for the critical file.
-          find . -name "zephyr-env.sh" || echo "File not found anywhere in the workspace."
 
       # The original failing step would be here, but we'll use the fixed command below
 
