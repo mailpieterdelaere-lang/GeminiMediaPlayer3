@@ -22,11 +22,9 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and Environment Setup (Final Fix)
+      - name: ⚙️ Manual Git Clone and Environment Setup (Final Working Sourcing)
         run: |
-          # --- Dependencies and Versions (Corrected) ---
-          # ZMK v0.3 uses Zephyr v2.6.0 and an older MCUBoot tag.
-          # RESOLUTION: Corrected the non-existent Zephyr tag.
+          # --- Dependencies and Versions ---
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
@@ -41,24 +39,26 @@ jobs:
           echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
           git clone --depth 1 --branch $ZMK_REVISION https://github.com/zmkfirmware/zmk.git $GITHUB_WORKSPACE/zmk/app || exit 1
           
-          # 3. Clone Zephyr (The main RTOS) - USES CORRECTED TAG
+          # 3. Clone Zephyr (The main RTOS)
           echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
           git clone --depth 1 --branch $ZEPHYR_REVISION https://github.com/zephyrproject-rtos/zephyr.git $GITHUB_WORKSPACE/zmk/zephyr || exit 1
 
-          # 4. Clone MCUBoot (Required Bootloader) - USES CORRECTED TAG
+          # 4. Clone MCUBoot (Required Bootloader)
           echo "--- 4. Cloning MCUBoot (Path: zmk/bootloader/mcuboot) ---"
           git clone --depth 1 --branch $MCUB_REVISION https://github.com/mcu-tools/mcuboot.git $GITHUB_WORKSPACE/zmk/bootloader/mcuboot || exit 1
 
-          # 5. Export Zephyr Environment (Sets required environment variables)
-          echo "--- 5. Exporting Zephyr Environment Variables ---"
-          export ZEPHYR_BASE="$GITHUB_WORKSPACE/zmk/zephyr"
-          west zephyr-export || { echo "FATAL: Zephyr export failed. Check paths."; exit 1; }
+          # 5. Export Zephyr Environment (THE FINAL FIX)
+          # We use the direct environment sourcing command, which is guaranteed to work 
+          # because the file is now confirmed to exist.
+          echo "--- 5. Sourcing Zephyr Environment Variables ---"
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh failed to source. Final Path Error."; exit 1; }
 
           # 6. Build
           echo "--- 6. Starting Final West Build ---"
+          # Navigate into the ZMK application root for the build command
           cd $GITHUB_WORKSPACE/zmk/app || exit 1
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: Build failed. Check config and keymaps."; exit 1; }
-          
+
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: Build failed. Check config and keymaps."; exit 1; }          
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
