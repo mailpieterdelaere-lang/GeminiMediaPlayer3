@@ -9,7 +9,6 @@ on:
 
 jobs:
   build:
-    # ⚠️ FIX: Correct YAML indentation for 'container' and 'image'
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -24,7 +23,6 @@ jobs:
           fetch-depth: 0 
           
       - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
-        # ⚠️ FIX: Use 'bash' shell to solve the "Bad substitution" error in zephyr-env.sh.
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -39,7 +37,7 @@ jobs:
           mkdir -p "$ZMK_REPO_ROOT/app"
           mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot"
 
-          # 2. Clone Dependencies (Fixed branches/tags are used)
+          # 2. Clone Dependencies
           echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
           git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_REPO_ROOT/app" || exit 1
           echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
@@ -51,7 +49,7 @@ jobs:
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_REPO_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Build Setup and CMake Execution (Uses absolute paths from workspace root)
+          # 6. Build Setup and CMake Execution
           echo "--- 6. Starting Final CMake Build ---"
           
           # --- Path Definitions ---
@@ -59,7 +57,7 @@ jobs:
           BUILD_DIR="$APP_REPO_DIR/build"
           APP_SOURCE_DIR="$APP_REPO_DIR" # Start by assuming CMakeLists.txt is here
           
-          # 7. Backup Plan: Check for nested 'app' directory (where the error was likely hitting)
+          # 7. Backup Plan: Check for nested 'app' directory
           if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
              echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
              APP_SOURCE_DIR="$APP_REPO_DIR/app"
@@ -74,15 +72,38 @@ jobs:
           # 8. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           
-          # A. CMake Configure Step (FINAL FIX: Explicitly define ZEPHYR_BASE for CMake)
+          # A. CMake Configure Step (FINAL FIX: Explicitly define all Zephyr paths)
           cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nice_nano_v2 \
             -DSHIELD=crkbd_left \
             -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
             -DZEPHYR_BASE="$ZMK_REPO_ROOT/zephyr" \
+            -DCMAKE_PREFIX_PATH="$ZMK_REPO_ROOT/zephyr" \
+            -DZEPHYR_DIR="$ZMK_REPO_ROOT/zephyr" \
             -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
           echo "TRACE: Executing build in directory: $BUILD_DIR"
-          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit
+          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
+          
+      - name: ⬆️ Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: zmk-firmware
+          path: zmk/app/build/zephyr/zmk.uf2
+
+  artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ⬇️ Download Final Firmware Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ./firmware-artifacts
+          
+      - name: 📦 Display Artifact Contents
+        run: ls -lR ./firmware-artifacts
