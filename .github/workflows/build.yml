@@ -1,4 +1,4 @@
-name: ZMK Resilient West Dependency Build (West Fix)
+name: ZMK Resilient West Dependency Build (Manifest Path Fix)
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Corrected Syntax
+      - name: ⚙️ West-Managed Build with Corrected Manifest Path
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -36,44 +36,46 @@ jobs:
           
           # --- 2. Clone ZMK and Initialize West Workspace ---
           echo "--- 2. Cloning ZMK Application Source ---"
+          # Clone the ZMK app to get the source and the west.yml manifest
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
 
-          echo "--- 3. Initializing West Workspace with Correct Manifest Path ---"
+          echo "--- 3. Initializing West Workspace with Manifest in /app ---"
           mkdir -p "$ZMK_ROOT" || { echo "FATAL: Failed to create ZMK workspace directory."; exit 1; }
           
-          # ⚠️ FIX: Initialize the west workspace by pointing to the repository directory ($ZMK_CLONE_DIR)
-          # This tells west to use the west.yml *inside* that directory as the manifest repository.
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" "$ZMK_ROOT" || { echo "FATAL: West initialization failed. Check manifest integrity."; exit 1; }
+          # ⚠️ FIX: Use the explicit path to the west.yml file *within the cloned repository*
+          # This accounts for the app/west.yml location common in older ZMK versions.
+          west init -m "$ZMK_CLONE_DIR" --local-manifest "app/west.yml" "$ZMK_ROOT" || { echo "FATAL: West initialization failed. Manifest path is likely incorrect for this ZMK tag."; exit 1; }
 
           # Enter the newly initialized workspace directory
           cd "$ZMK_ROOT" || { echo "FATAL: Failed to enter ZMK workspace."; exit 1; }
           
           # --- 4. Update Dependencies ---
           echo "--- 4. Updating Dependencies via West (Cloning Zephyr, MCUBoot, etc.) ---"
-          west update || { echo "FATAL: West update failed. Dependency cloning failed (network or manifest issue)."; exit 1; }
+          # This step downloads all required versions of Zephyr and other modules.
+          west update || { echo "FATAL: West update failed. Dependency cloning failed."; exit 1; }
           
           # --- 5. Prepare Application and Custom Configuration ---
           echo "--- 5. Setting up Application Structure ---"
           
           # Copy ZMK app contents into the expected 'app' directory within the workspace
+          # This folder now contains the application code (including the CMakeLists.txt)
           mkdir -p "$ZMK_ROOT/app" || { echo "FATAL: Failed to create app directory in workspace."; exit 1; }
-          # Move the cloned ZMK app files into the workspace app folder
-          cp -r "$ZMK_CLONE_DIR/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
           
           # Copy custom config files to the application source location
           if [ -f "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" ]; then
-             # Copy custom overlay into the app directory
+             # Custom overlay is placed alongside the app's CMakeLists.txt
              cp "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
              echo "TRACE: Copied custom nice_nano_v2.overlay into application source."
           else
-             echo "WARNING: nice_nano_v2.overlay not found in config. Relying on default settings."
+             echo "WARNING: nice_nano_v2.overlay not found in config. Proceeding with default settings."
           fi
           
           # --- 6. Source Zephyr Environment ---
           echo "--- 6. Sourcing Zephyr Environment Variables ---"
           ZEPHYR_ENV_SCRIPT="$ZMK_ROOT/zephyr/zephyr-env.sh"
           if [ -f "$ZEPHYR_ENV_SCRIPT" ]; then
-             . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed. Check script integrity."; exit 1; }
+             . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
              echo "TRACE: Zephyr environment sourced successfully."
           else
              echo "FATAL: zephyr-env.sh script not found. West update failed to clone Zephyr core."
@@ -83,7 +85,7 @@ jobs:
           # --- 7. Build and Configure ---
           echo "--- 7. Starting Final West Build ---"
           
-          # Use the 'west build' command, targeting the app directory and using the nice_nano_v2 board.
+          # Use 'west build' targeting the app directory and the nice_nano_v2 board.
           west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
             echo "FATAL: West build failed. Compilation or DTS configuration error."
             exit 1
@@ -94,7 +96,6 @@ jobs:
         if: success()
         with:
           name: zmk-firmware
-          # West builds to 'build/zephyr' relative to the workspace root
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
 
   artifact:
