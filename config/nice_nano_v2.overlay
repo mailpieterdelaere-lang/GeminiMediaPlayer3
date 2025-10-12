@@ -4,10 +4,11 @@
     compatible = "zmk,kscan-direct-gpios";
     label = "KSCAN_0";
     
-    // Simplification: Temporary removal of complex flag group.
-    direct-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_LOW)>, // D2
-                   <&pro_micro_d 4 (GPIO_ACTIVE_LOW)>, // D4
-                   <&pro_micro_d 6 (GPIO_ACTIVE_LOW)>; // D6
+    // FINAL FIX: Using '3' (GPIO_ACTIVE_LOW | GPIO_PULL_UP) as a single numerical constant
+    // to bypass the DTS syntax error caused by the bitwise OR operator '|' in this Zephyr version.
+    direct-gpios = <&pro_micro_d 2 3>, // D2 (0x3)
+                   <&pro_micro_d 4 3>, // D4 (0x3)
+                   <&pro_micro_d 6 3>; // D6 (0x3)
 };
 
 // Ensure the chosen kscan is set to the one we defined.
