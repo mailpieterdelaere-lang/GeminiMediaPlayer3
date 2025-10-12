@@ -24,10 +24,10 @@ jobs:
           fetch-depth: 0 
           
       - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
-        # Final fix: Must use 'bash' shell for sourcing zephyr-env.sh
+        # Use 'bash' shell to correctly source zephyr-env.sh and execute complex scripts.
         shell: bash
         run: |
-          # --- Dependencies and Versions (Based on your west.yml's v0.3) ---
+          # --- Dependencies and Versions (Hardcoded from your v0.3 manifest) ---
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
@@ -52,31 +52,34 @@ jobs:
 
           # 5. Sourcing Zephyr Environment
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
-          # This command sets ZEPHYR_BASE and other necessary variables in the shell session
           . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Starting Final CMake Build ---
-          # Navigate into the ZMK application root
-          cd "$GITHUB_WORKSPACE/zmk/app" || exit 1
-
-          # A. CMake Configure Step (Corrected to use $PWD for source)
-          echo "TRACE: Configuring CMake from directory: $PWD"
-          cmake -B build \
+          # 6. Build (Using absolute paths to resolve "CMakeLists.txt not found" error)
+          echo "--- 6. Starting Final CMake Build ---"
+          
+          # Define absolute paths for clarity
+          ZMK_APP_DIR="$GITHUB_WORKSPACE/zmk/app"
+          BUILD_DIR="$ZMK_APP_DIR/build"
+          
+          # A. CMake Configure Step: Executes from the workspace root (no 'cd')
+          echo "TRACE: Configuring CMake from directory: $GITHUB_WORKSPACE"
+          cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nice_nano_v2 \
             -DSHIELD=crkbd_left \
             -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
-            -S . || { echo "FATAL: CMake configuration failed."; exit 1; }
+            -S "$ZMK_APP_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
-          cmake --build build || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
+          echo "TRACE: Executing build in directory: $BUILD_DIR"
+          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
           
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: zmk-firmware
-          # The resulting UF2 file is located relative to the 'zmk/app' directory
+          # The UF2 file path is relative to the workspace root
           path: zmk/app/build/zephyr/zmk.uf2
 
   artifact:
