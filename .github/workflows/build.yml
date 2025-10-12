@@ -1,4 +1,4 @@
-name: ZMK Build: Standard Shield Configuration (Final Corrected YAML)
+name: ZMK Build:Standard Shield Configuration (Final Corrected YAML)
 
 on:
   push:
