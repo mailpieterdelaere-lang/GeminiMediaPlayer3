@@ -1,4 +1,4 @@
-name: ZMK Build: Direct Shield Inclusion (Final Attempt)
+name: ZMK Build:Direct Shield Inclusion (Final Attempt)
 
 on:
   push:
