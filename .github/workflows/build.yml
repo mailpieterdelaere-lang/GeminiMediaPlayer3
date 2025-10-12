@@ -1,4 +1,4 @@
-name: ZMK Fully Manual Dependency Build (Base Board Test)
+name: ZMK Resilient West Dependency Build
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    # Use the ZMK build container, which should have west pre-installed
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -22,103 +23,52 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and CMake Build (Base Board Script)
+      - name: ⚙️ West-Managed Build with Error Handling
         shell: bash
         run: |
           # --- Configuration Variables ---
-          ZEPHYR_REVISION="v2.6.0" 
-          MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
-          ZMK_REPO_ROOT="$GITHUB_WORKSPACE/zmk"
+          APP_REPO_DIR="$GITHUB_WORKSPACE/app_clone" # Temporary ZMK clone location
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace" # The West workspace root
           
-          # --- Path Definitions ---
-          ZEPHYR_DIR="$ZMK_REPO_ROOT/zephyr"
-          ZEPHYR_ENV_SCRIPT="$ZEPHYR_DIR/zephyr-env.sh"
-          APP_REPO_DIR="$ZMK_REPO_ROOT/app" # ZMK Clone Root
-          BUILD_DIR="$APP_REPO_DIR/build"
+          # --- 1. Basic Tool Validation ---
+          echo "--- 1. Validating West Tool ---"
+          command -v west || { echo "FATAL: 'west' tool not found in container path."; exit 1; }
+          echo "TRACE: 'west' tool is available."
           
-          # 1. Create the base ZMK structure
-          echo "--- 1. Creating target directories ---"
-          mkdir -p "$ZEPHYR_DIR" || { echo "FATAL: Failed to create Zephyr directory."; exit 1; }
-          mkdir -p "$APP_REPO_DIR" || { echo "FATAL: Failed to create ZMK app directory."; exit 1; }
-          mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: Failed to create MCUBoot directory."; exit 1; }
-
-          # 2. Clone Dependencies
-          echo "--- 2. Cloning Dependencies ---"
-          git clone --depth 1 --branch "$ZMK_REVISION" --recursive https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK clone failed."; exit 1; }
-          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZEPHYR_DIR" || { echo "FATAL: Zephyr clone failed."; exit 1; }
-          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || { echo "FATAL: MCUBoot clone failed."; exit 1; }
-
-          # 3. 🔍 VALIDATION CHECK: Verify critical Zephyr paths 
-          echo "--- 3. VALIDATING ZEPHYR ENVIRONMENT ---"
-          [ -d "$ZEPHYR_DIR" ] || { echo "FATAL: Zephyr base directory not found at $ZEPHYR_DIR"; exit 1; }
-          [ -f "$ZEPHYR_ENV_SCRIPT" ] || { echo "FATAL: Zephyr environment script not found at $ZEPHYR_ENV_SCRIPT"; exit 1; }
-          echo "TRACE: All environment checks passed."
-
-          # 4. Sourcing Zephyr Environment (Error Handled Inline)
-          echo "--- 4. Sourcing Zephyr Environment Variables ---"
-          . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
-
-          # 5. Build Setup and CMake Execution
-          echo "--- 5. Starting Final CMake Build (Base Board Isolation) ---"
+          # --- 2. Initialize West Workspace and Clone ZMK ---
+          echo "--- 2. Initializing West Workspace ---"
+          mkdir -p "$ZMK_ROOT" || { echo "FATAL: Failed to create ZMK workspace directory."; exit 1; }
+          cd "$ZMK_ROOT" || { echo "FATAL: Failed to enter ZMK workspace."; exit 1; }
           
-          # --- Runtime Path Definitions ---
-          APP_SOURCE_DIR="$APP_REPO_DIR" # Initial assumption
+          # Clone ZMK into a temp location for its manifest
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
+
+          # Initialize the west workspace using the manifest from the cloned app
+          west init -m "$APP_REPO_DIR/west.yml" --mr "$ZMK_REVISION" || { echo "FATAL: West initialization failed. Manifest may be missing or incorrect for v0.3."; exit 1; }
           
-          # 6. BACKUP PLAN: Check for nested 'app' directory
-          if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
-             echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
-             APP_SOURCE_DIR="$APP_REPO_DIR/app"
-          elif [ ! -f "$APP_REPO_DIR/CMakeLists.txt" ]; then
-             echo "FATAL: Cannot find CMakeLists.txt in either '$APP_REPO_DIR' or '$APP_REPO_DIR/app'."
-             ls -l "$APP_REPO_DIR"
-             exit 1
+          # --- 3. Update Dependencies ---
+          echo "--- 3. Updating Dependencies via West ---"
+          west update || { echo "FATAL: West update failed. Dependency cloning failed (network or manifest issue)."; exit 1; }
+          
+          # --- 4. Prepare Application and Custom Configuration ---
+          echo "--- 4. Setting up Application Structure ---"
+          
+          # Create the final app folder and copy the ZMK source code into the west workspace
+          mkdir -p "$ZMK_ROOT/app" || { echo "FATAL: Failed to create app directory in workspace."; exit 1; }
+          cp -r "$APP_REPO_DIR/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
+
+          # Copy custom config files to the expected location for the build system
+          if [ -f "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" ]; then
+             cp "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
+             echo "TRACE: Copied custom nice_nano_v2.overlay into application source."
           else
-             echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
+             echo "WARNING: nice_nano_v2.overlay not found in config. Relying on default settings."
           fi
-
-          # 7. Execute CMake
-          echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
-          echo "TRACE: Attempting to configure the base 'nice_nano_v2' board without any custom configuration."
           
-          # A. CMake Configure Step (REMOVED -DZMK_CONFIG for isolation)
-          cmake -B "$BUILD_DIR" \
-            -GNinja \
-            -DBOARD=nice_nano_v2 \
-            -DZEPHYR_BASE="$ZEPHYR_DIR" \
-            -DCMAKE_PREFIX_PATH="$ZEPHYR_DIR" \
-            -DZEPHYR_DIR="$ZEPHYR_DIR" \
-            -DBOARD_ROOT="$APP_SOURCE_DIR" \
-            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed. Review logs for board errors."; exit 1; }
-            
-          # B. CMake Build Execution Step (If configure succeeds, start the build)
-          echo "TRACE: Executing build in directory: $BUILD_DIR"
-          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Compilation error."; exit 1; }
-          
-      - name: ⬆️ Upload Failed DTS Artifact for Debugging
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: failed-dts-file
-          path: ${{ github.workspace }}/zmk/app/build/zephyr/nice_nano_v2.dts.pre.tmp
-          
-      - name: ⬆️ Upload Final Firmware Artifacts
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: zmk-firmware
-          path: zmk/app/build/zephyr/zmk.uf2
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Download Final Firmware Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: zmk-firmware
-          path: ./firmware-artifacts
-          
-      - name: 📦 Display Artifact Contents
-        run: ls -lR ./firmware-artifacts
+          # --- 5. Source Zephyr Environment ---
+          echo "--- 5. Sourcing Zephyr Environment Variables ---"
+          ZEPHYR_ENV_SCRIPT="$ZMK_ROOT/zephyr/zephyr-env.sh"
+          if [ -f "$ZEPHYR_ENV_SCRIPT" ]; then
+             . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed. Check script integrity."; exit 1; }
+             echo "TRACE: Zephyr environment sourced successfully."
