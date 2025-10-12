@@ -1,4 +1,4 @@
-name: ZMK Build: Standard Shield Configuration (Final Attempt)
+name: ZMK Build: Standard Shield Configuration (Final Corrected)
 
 on:
   push:
@@ -22,67 +22,56 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Standard Configuration
+      - name: ⚙️ West-Managed Build Script (Corrected)
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" # Your local config folder
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
           BOARD_NAME="nice_nano_v2"
-          
-          # --- 1-4. West Setup (Skipped logging, assumed success) ---
+          SHIELD_NAME="mediapad"
+          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
+
+          # 1. Initialize and Update West Workspace
+          echo "--- 1. Initializing and Updating West Workspace ---"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
           cd "$ZMK_ROOT"
           west update || exit 1
           
-          # --- 5. Prepare Application and Apply ALL Fixes ---
-          echo "--- 1. Copying Application Source and Configuring Files ---"
-          
-          # Copy ZMK app contents
+          # 2. Prepare Application Source and Configuration
+          echo "--- 2. Preparing Application Source and Configuration ---"
           mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
 
-          # --- FIX 1: Ensure the Keymap loads by moving/renaming the file ---
-          # We use the board name as the shield name for simplicity
-          SHIELD_NAME="mediapad" # We'll call the shield "mediapad"
-          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
+          # 3. Create Shield Directory and Copy/Patch Files
+          echo "--- 3. Setting up Shield Configuration and Applying Final Fixes ---"
           mkdir -p "$SHIELD_DIR"
           
-          # Copy Keymap as shield definition file
-          cp "$CUSTOM_CONFIG_DIR/mediapad3.keymap" "$SHIELD_DIR/$SHIELD_NAME.keymap" || { echo "FATAL: Keymap file missing or failed copy."; exit 1; }
-          echo "TRACE: Keymap copied to $SHIELD_DIR/$SHIELD_NAME.keymap"
-          
-          # Create a dummy config file to tell ZMK to enable our kscan config
+          # Copy Keymap, Overlay, and create config file
+          cp "$CUSTOM_CONFIG_DIR/mediapad3.keymap" "$SHIELD_DIR/$SHIELD_NAME.keymap" || { echo "FATAL: Keymap file missing."; exit 1; }
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$SHIELD_DIR/$SHIELD_NAME.overlay" || { echo "FATAL: Overlay file missing."; exit 1; }
           echo "CONFIG_ZMK_KEYMAP_NAME=\"$SHIELD_NAME\"" > "$SHIELD_DIR/$SHIELD_NAME.conf"
-          echo "TRACE: Created shield config file."
           
-          # --- FIX 2: Apply the Overlay Fix (Missing rows/columns) ---
-          
-          # Copy the overlay to the SHIELD directory for standard shield processing
+          # **FINAL C COMPILATION FIX**: Patch the overlay with the missing rows/columns properties
           OVERLAY_DEST="$SHIELD_DIR/$SHIELD_NAME.overlay"
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$OVERLAY_DEST" || { echo "FATAL: Overlay file failed copy."; exit 1; }
-          
-          # PATCH: Force the rows and columns properties to resolve compilation errors
           if ! grep -q "rows" "$OVERLAY_DEST"; then
-              echo "Patching overlay with missing rows=<1> and columns=<3> properties..."
+              echo "Applying final matrix size patch to resolve C compilation errors..."
+              # Target the kscan_0 node and insert rows/columns properties
               sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$OVERLAY_DEST"
           fi
-          echo "TRACE: Overlay copied and patched with matrix size fix."
 
-          # --- 6. Source Zephyr Environment ---
-          echo "--- 2. Sourcing Zephyr Environment Variables ---"
+          # 4. Source Zephyr Environment
+          echo "--- 4. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # --- 7. Build and Configure ---
-          echo "--- 3. Starting Final West Build (Using SHIELD) ---"
-          
-          # Use the shield flag to load our custom files
+          # 5. Build Application
+          echo "--- 5. Starting Final West Build ---"
           west build -b $BOARD_NAME "$ZMK_ROOT/app" -- -DSHIELD=$SHIELD_NAME || { 
-            echo "FATAL: West build failed."
+            echo "FATAL: West build failed. Please check the content of your overlay and keymap files."
             exit 1
           }
           
