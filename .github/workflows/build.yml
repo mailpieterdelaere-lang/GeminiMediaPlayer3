@@ -1,4 +1,4 @@
-name: ZMK Build
+name: ZMK Resilient Build
 
 on:
   push:
@@ -9,47 +9,58 @@ on:
 
 jobs:
   build:
-    # Use a standard ZMK/Zephyr Docker image for consistent environments
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
     runs-on: ubuntu-latest
     
     steps:
-      - name: ⬇️ Checkout
+      - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history for west to work correctly
+          # Fetch all history for west to correctly resolve manifests
           fetch-depth: 0 
 
       - name: 📦 Initialize and Update West Workspace
-        # This is where the ZMK/Zephyr dependencies are fetched (including zcbor)
+        # Uses the '||' (OR) operator to print a clear failure message if west commands fail
         run: |
-          # The ZMK environment usually requires initializing from the top-level repo
-          west init -l config
-          # Then update to pull all modules (including zmk/zephyr)
-          west update
+          echo "--- Initializing West Workspace ---"
+          west init -l config || { echo "FATAL: west init failed. Check for manifest (config/west.yml) errors."; exit 1; }
+          
+          echo "--- Updating Dependencies (Zephyr, ZMK, etc.) ---"
+          west update || { echo "FATAL: west update failed. Check internet access, git credentials, or repository names in manifest."; exit 1; }
 
-      - name: 🔍 DEBUG:Check Workspace Directory Structure (Crucial Step)
-        # Line 33 is likely around here, possibly the 'run:' or the start of the script.
-        run: | 
+      - name: 🔍 DEBUG: Check Workspace Directory Structure
+        # This debug step remains for diagnostics if the environment setup fails again
+        run: |
           echo "--- Current Working Directory (CWD) ---"
           pwd
           
-          echo "--- Listing Contents of expected zmk/zephyr/ path ---"
-          ls -la zmk/zephyr/ || echo "🚨 ERROR: zmk/zephyr/ directory not found or inaccessible."
+          echo "--- Searching for zephyr-env.sh (Expect success: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh) ---"
+          find . -name "zephyr-env.sh" || echo "Critical: zephyr-env.sh not found after west update."
+        
+        continue-on-error: true # Allow subsequent steps to run for diagnostics
 
-      # The original failing step would be here, but we'll use the fixed command below
-
-      - name: ⚙️ Build ZMK Firmware (Resolution Applied)
+      - name: ⚙️ Build ZMK Firmware (Resolution Applied & Error Handled)
+        # This step uses the combined, correct approach to set up the environment and run the build
         run: |
-          # 1. Change directory into the ZMK app directory. 
-          # This makes the shell's CWD correct for the Zephyr/West build system.
-          cd zmk/app
+          # 1. Source the environment script to define $ZEPHYR_BASE and allow CMake to find ZephyrConfig.cmake.
+          # The absolute path must be used: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
+          echo "--- Sourcing Zephyr Environment ---"
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh sourcing failed. Verify the ZMK/Zephyr modules were correctly checked out."; exit 1; }
           
-          # 2. Run the actual build command from the zmk/app directory. 
-          # Note: We now reference the config directory using the correct path.
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config
+          # 2. Change directory into the ZMK app directory.
+          echo "--- Changing Directory for West Build ---"
+          cd zmk/app || { echo "FATAL: zmk/app directory not found. West update failed to checkout ZMK module correctly."; exit 1; }
           
-          # 2. Run the actual build command
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left
+          # 3. Run the actual build command with correct shield/config paths.
+          echo "--- Starting West Build ---"
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output for specific compilation errors."; exit 1; }
+
+      - name: ⬆️ Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success() # Only upload if the build step succeeded
+        with:
+          name: zmk-firmware
+          # Assumes the build directory is zmk/app/build after the 'cd' command
+          path: zmk/app/build/zephyr/zmk.uf2
