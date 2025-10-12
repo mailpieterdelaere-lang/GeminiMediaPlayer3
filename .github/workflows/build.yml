@@ -55,12 +55,12 @@ jobs:
           # This command sets ZEPHYR_BASE and other necessary variables in the shell session
           . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Build (Replacing 'west build' with direct 'cmake' calls)
-          echo "--- 6. Starting Final CMake Build ---"
+          # 6. Starting Final CMake Build ---
           # Navigate into the ZMK application root
           cd "$GITHUB_WORKSPACE/zmk/app" || exit 1
 
-          # A. CMake Configure Step: Sets the board, shield, and config directory
+          # A. CMake Configure Step (Corrected to use $PWD for source)
+          echo "TRACE: Configuring CMake from directory: $PWD"
           cmake -B build \
             -GNinja \
             -DBOARD=nice_nano_v2 \
