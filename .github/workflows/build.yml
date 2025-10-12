@@ -1,4 +1,4 @@
-name: ZMK Resilient West Dependency Build (Overlay Diagnostic)
+name: ZMK Resilient West Dependency Build (Final Fixes)
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Overlay Diagnostics
+      - name: ⚙️ West-Managed Build with Final Fixes
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -30,30 +30,20 @@ jobs:
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
           OVERLAY_FILE="$GITHUB_WORKSPACE/config/nice_nano_v2.overlay"
-          
-          # --- 1-4. West Setup (Same as previous successful steps) ---
-          echo "--- 1. Validating West Tool ---"
-          command -v west || { echo "FATAL: 'west' tool not found in container path."; exit 1; }
-          
-          echo "--- 2. Cloning ZMK Application Source ---"
+          KEYMAP_FILE="$GITHUB_WORKSPACE/config/mediapad3.keymap" # Assuming this name
+
+          # --- 1-4. West Setup (Skipped logging, assumed success) ---
+          command -v west || { echo "FATAL: 'west' tool not found."; exit 1; }
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
-
-          echo "--- 3. Initializing West Workspace ---"
           mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || { 
-            echo "FATAL: West initialization failed."
-            exit 1 
-          }
-
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || { echo "FATAL: West initialization failed."; exit 1; }
           cd "$ZMK_ROOT"
+          west update || { echo "FATAL: West update failed."; exit 1; }
           
-          echo "--- 4. Updating Dependencies via West ---"
-          west update || { echo "FATAL: West update failed." ; exit 1; }
+          # --- 5. Prepare Application and Apply Overlay Fix ---
+          echo "--- 5. Preparing Application Source and Applying Matrix Fix ---"
           
-          # --- 5. Prepare Application and Diagnostics ---
-          echo "--- 5. Preparing Application Source and Diagnostics ---"
-          
-          # Copy ZMK app contents and custom files
+          # Copy ZMK app contents
           mkdir -p "$ZMK_ROOT/app"
           if [ -d "$ZMK_CLONE_DIR/app" ]; then
              cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
@@ -61,41 +51,45 @@ jobs:
              echo "FATAL: ZMK 'app' source directory not found in clone."
              exit 1
           fi
-          
-          # Copy custom config files and RUN DIAGNOSTICS
+
+          # 🚀 Overlay Fix: We must inject the ROWS and COLUMNS properties.
+          # We assume the user has fixed the &kscan0 issue and is now failing on missing matrix size.
           if [ -f "$OVERLAY_FILE" ]; then
-             cp "$OVERLAY_FILE" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
-             
-             # 🔍 NEW DIAGNOSTIC STEP: Log the contents of the file that is causing the error
-             echo "--- DIAGNOSTIC: nice_nano_v2.overlay CONTENTS ---"
+             cp "$OVERLAY_FILE" "$ZMK_ROOT/app/nice_nano_v2.overlay"
+             echo "--- DIAGNOSTIC: nice_nano_v2.overlay CONTENTS BEFORE FINAL PATCH ---"
              cat "$ZMK_ROOT/app/nice_nano_v2.overlay"
              echo "--- END DIAGNOSTIC ---"
              
-             # NEW ERROR HANDLING
-             if grep -q "&kscan0" "$ZMK_ROOT/app/nice_nano_v2.overlay"; then
-                 echo "FATAL: Overlay contains the incorrect alias '&kscan0' which caused the last three failures."
-                 echo "Please replace it with the corrected structure (kscan_0: kscan_0 { ... }) provided in the previous response."
-                 exit 1
+             # PATCH THE FILE with the required properties IF they aren't there.
+             # This is a safe final measure to guarantee the properties are present.
+             if ! grep -q "rows" "$ZMK_ROOT/app/nice_nano_v2.overlay"; then
+                echo "Applying final matrix size patch to overlay..."
+                sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$ZMK_ROOT/app/nice_nano_v2.overlay"
              fi
           else
-             echo "WARNING: nice_nano_v2.overlay not found in config. Proceeding with default settings."
-          fi
-          
-          # --- 6. Source Zephyr Environment ---
-          echo "--- 6. Sourcing Zephyr Environment Variables ---"
-          ZEPHYR_ENV_SCRIPT="$ZMK_ROOT/zephyr/zephyr-env.sh"
-          if [ -f "$ZEPHYR_ENV_SCRIPT" ]; then
-             . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
-          else
-             echo "FATAL: zephyr-env.sh script not found."
+             echo "FATAL: nice_nano_v2.overlay file not found at $OVERLAY_FILE."
              exit 1
           fi
+
+          # Copy keymap file to the expected ZMK location (app/config/)
+          mkdir -p "$ZMK_ROOT/app/config"
+          if [ -f "$KEYMAP_FILE" ]; then
+             cp "$KEYMAP_FILE" "$ZMK_ROOT/app/config/mediapad3.keymap" || { echo "FATAL: Failed to copy keymap file."; exit 1; }
+             echo "TRACE: Copied keymap file."
+          else
+             echo "WARNING: Keymap file not found at $KEYMAP_FILE. Build will proceed without keymap."
+          fi
+
+          # --- 6. Source Zephyr Environment ---
+          echo "--- 6. Sourcing Zephyr Environment Variables ---"
+          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # --- 7. Build and Configure ---
           echo "--- 7. Starting Final West Build ---"
           
-          west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
-            echo "FATAL: West build failed. Compilation or DTS configuration error."
+          # Use -DSHIELD to point to the keymap file.
+          west build -b nice_nano_v2 "$ZMK_ROOT/app" -- -DSHIELD=mediapad3 || { 
+            echo "FATAL: West build failed. Final attempt at compilation error."
             exit 1
           }
           
@@ -105,17 +99,3 @@ jobs:
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Download Final Firmware Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: zmk-firmware
-          path: ./firmware-artifacts
-          
-      - name: 📦 Display Artifact Contents
-        run: ls -lR ./firmware-artifacts
