@@ -1,4 +1,4 @@
-name: ZMK Resilient Build
+name: ZMK Reusable Build
 
 on:
   push:
@@ -9,38 +9,26 @@ on:
 
 jobs:
   build:
-    # Use the official ZMK Docker image
-    container:
-      image: zmkfirmware/zmk-build-arm:stable
-    
-    runs-on: ubuntu-latest
-    
-    # RESOLUTION 2: Explicitly grant permissions to resolve potential token/access issues 
-    # when fetching external actions and content.
+    # Set permissions for accessing the ZMK main repository and our local content
     permissions:
-      contents: read 
-      
+      contents: read
+    
+    # CALL THE REUSABLE WORKFLOW
+    uses: zmkfirmware/zmk/.github/workflows/reusable-build-zmk.yml@main
+    with:
+      # Pass the required parameters to the ZMK build workflow
+      board: nice_nano_v2
+      shield: crkbd_left
+      # The config-dir is relative to the repository root
+      config-dir: config
+
+  # Automatically download the built firmware if the 'build' job succeeds
+  artifact:
+    needs: build
+    runs-on: ubuntu-latest
     steps:
-      - name: ⬇️ Checkout Repository
-        uses: actions/checkout@v4
+      - name: ⬇️ Download Artifacts
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0 
-
-      # RESOLUTION 1: Use the correct, maintained path for the setup action.
-      # This replaces all manual 'west init', 'west update', and 'source zephyr-env.sh' steps.
-      - name: ⚙️ Set up ZMK Environment
-        uses: zmkfirmware/zmk-helpers/actions/setup-zmk@main 
-        # This action clones ZMK, runs west update, and sources the environment correctly.
-
-      - name: ⚙️ Build ZMK Firmware (Simplified via Action)
-        # The environment is already sourced, so we run west build directly.
-        run: |
-          west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output."; exit 1; }
-
-      - name: ⬆️ Upload Artifacts
-        uses: actions/upload-artifact@v4
-        if: success() # Only upload if the build succeeded
-        with:
-          name: zmk-firmware
-          # The artifact path remains relative to the workspace root
-          path: build/zephyr/zmk.uf2
+          name: firmware
+          path: ./firmware-artifacts
