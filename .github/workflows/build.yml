@@ -1,4 +1,4 @@
-name: ZMK Build: Standard Shield Configuration (Final Corrected)
+name: ZMK Build: Standard Shield Configuration (Final Corrected YAML)
 
 on:
   push:
@@ -22,19 +22,14 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build Script (Corrected)
+      - name: ⚙️ Setup West and Clone ZMK
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
-          BOARD_NAME="nice_nano_v2"
-          SHIELD_NAME="mediapad"
-          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
-
-          # 1. Initialize and Update West Workspace
+          
           echo "--- 1. Initializing and Updating West Workspace ---"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
@@ -42,10 +37,20 @@ jobs:
           cd "$ZMK_ROOT"
           west update || exit 1
           
-          # 2. Prepare Application Source and Configuration
+      - name: 📝 Prepare Application and Apply ALL Fixes
+        shell: bash
+        run: |
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
+          BOARD_NAME="nice_nano_v2"
+          SHIELD_NAME="mediapad"
+          SHIELD_DIR="$ZMK_ROOT/app/boards/shields/$SHIELD_NAME"
+
           echo "--- 2. Preparing Application Source and Configuration ---"
+          
+          # Copy ZMK app contents
           mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
+          cp -r "$ZMK_ROOT/app_clone/app/"* "$ZMK_ROOT/app" || exit 1
 
           # 3. Create Shield Directory and Copy/Patch Files
           echo "--- 3. Setting up Shield Configuration and Applying Final Fixes ---"
@@ -59,19 +64,28 @@ jobs:
           # **FINAL C COMPILATION FIX**: Patch the overlay with the missing rows/columns properties
           OVERLAY_DEST="$SHIELD_DIR/$SHIELD_NAME.overlay"
           if ! grep -q "rows" "$OVERLAY_DEST"; then
-              echo "Applying final matrix size patch to resolve C compilation errors..."
+              echo "Patching overlay with missing rows=<1> and columns=<3> properties..."
               # Target the kscan_0 node and insert rows/columns properties
+              # This sed command is essential to fix the C compilation error.
               sed -i '/kscan_0:/a \ \ \ \ \ \ \ \ rows = <1>;\n\ \ \ \ \ \ \ \ columns = <3>;' "$OVERLAY_DEST"
           fi
+          
+      - name: 🔨 Build Application
+        shell: bash
+        run: |
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          BOARD_NAME="nice_nano_v2"
+          SHIELD_NAME="mediapad"
 
           # 4. Source Zephyr Environment
           echo "--- 4. Sourcing Zephyr Environment Variables ---"
-          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          cd "$ZMK_ROOT"
+          . "./zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 5. Build Application
           echo "--- 5. Starting Final West Build ---"
           west build -b $BOARD_NAME "$ZMK_ROOT/app" -- -DSHIELD=$SHIELD_NAME || { 
-            echo "FATAL: West build failed. Please check the content of your overlay and keymap files."
+            echo "FATAL: West build failed."
             exit 1
           }
           
@@ -81,3 +95,17 @@ jobs:
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+
+  artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ⬇️ Download Final Firmware Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ./firmware-artifacts
+          
+      - name: 📦 Display Artifact Contents
+        run: ls -lR ./firmware-artifacts
