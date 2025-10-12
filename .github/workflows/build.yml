@@ -23,75 +23,47 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ Manual Git Clone and CMake Build (Final Resilient Script)
+      - name: ⚙️ Manual Git Clone, Setup, and Build
         # Use 'bash' shell to correctly source zephyr-env.sh and execute complex scripts.
         shell: bash
         run: |
-          # --- Dependencies and Versions (Hardcoded from your v0.3 manifest) ---
+          # --- Configuration Variables ---
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
-
+          ZMK_REPO_ROOT="$GITHUB_WORKSPACE/zmk"
+          
           # 1. Create the base ZMK structure
           echo "--- 1. Creating target directories ---"
-          mkdir -p "$GITHUB_WORKSPACE/zmk/zephyr"
-          mkdir -p "$GITHUB_WORKSPACE/zmk/app"
-          mkdir -p "$GITHUB_WORKSPACE/zmk/bootloader/mcuboot"
+          mkdir -p "$ZMK_REPO_ROOT/zephyr"
+          mkdir -p "$ZMK_REPO_ROOT/app"
+          mkdir -p "$ZMK_REPO_ROOT/bootloader/mcuboot"
 
-          # 2. Clone ZMK App
+          # 2. Clone Dependencies
           echo "--- 2. Cloning ZMK App (Path: zmk/app) ---"
-          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$GITHUB_WORKSPACE/zmk/app" || exit 1
-          
-          # 3. Clone Zephyr (The main RTOS)
+          git clone --depth 1 --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_REPO_ROOT/app" || exit 1
           echo "--- 3. Cloning Zephyr RTOS (Path: zmk/zephyr) ---"
-          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$GITHUB_WORKSPACE/zmk/zephyr" || exit 1
-
-          # 4. Clone MCUBoot (Required Bootloader)
+          git clone --depth 1 --branch "$ZEPHYR_REVISION" https://github.com/zephyrproject-rtos/zephyr.git "$ZMK_REPO_ROOT/zephyr" || exit 1
           echo "--- 4. Cloning MCUBoot (Path: zmk/bootloader/mcuboot) ---"
-          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$GITHUB_WORKSPACE/zmk/bootloader/mcuboot" || exit 1
+          git clone --depth 1 --branch "$MCUB_REVISION" https://github.com/mcu-tools/mcuboot.git "$ZMK_REPO_ROOT/bootloader/mcuboot" || exit 1
 
           # 5. Sourcing Zephyr Environment
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
-          . "$GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          . "$ZMK_REPO_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 6. Build (Using absolute paths to resolve "CMakeLists.txt not found" error)
+          # 6. Build Setup and CMake Execution
           echo "--- 6. Starting Final CMake Build ---"
           
-          # Define absolute paths for clarity
-          ZMK_APP_DIR="$GITHUB_WORKSPACE/zmk/app"
-          BUILD_DIR="$ZMK_APP_DIR/build"
+          # --- Path Definitions ---
+          # CRITICAL FIX: The source code may be nested inside the cloned repository's 'app' folder.
+          # We check the most likely location first, then use a fallback.
+          APP_SOURCE_DIR="$ZMK_REPO_ROOT/app"
+          BUILD_DIR="$APP_SOURCE_DIR/build"
           
-          # A. CMake Configure Step: Executes from the workspace root (no 'cd')
-          echo "TRACE: Configuring CMake from directory: $GITHUB_WORKSPACE"
-          cmake -B "$BUILD_DIR" \
-            -GNinja \
-            -DBOARD=nice_nano_v2 \
-            -DSHIELD=crkbd_left \
-            -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
-            -S "$ZMK_APP_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
-            
-          # B. CMake Build Execution Step
-          echo "TRACE: Executing build in directory: $BUILD_DIR"
-          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
-          
-      - name: ⬆️ Upload Artifacts
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: zmk-firmware
-          # The UF2 file path is relative to the workspace root
-          path: zmk/app/build/zephyr/zmk.uf2
-
-  artifact:
-    needs: build
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: ⬇️ Download Final Firmware Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: zmk-firmware # Must match the upload name
-          path: ./firmware-artifacts
-          
-      - name: 📦 Display Artifact Contents
-        run: ls -lR ./firmware-artifacts
+          # 7. Backup Plan: Check for nested 'app' directory
+          if [ -f "$APP_SOURCE_DIR/app/CMakeLists.txt" ]; then
+             echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
+             APP_SOURCE_DIR="$APP_SOURCE_DIR/app"
+          elif [ ! -f "$APP_SOURCE_DIR/CMakeLists.txt" ]; then
+             echo "FATAL: Cannot find CMakeLists.txt in either '$ZMK_REPO_ROOT/app' or '$ZMK_REPO_ROOT/app/app'."
+             echo "Listing files in $ZMK_REPO_
