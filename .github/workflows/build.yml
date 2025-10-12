@@ -18,49 +18,27 @@ jobs:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Fetch all history for west to correctly resolve manifests
           fetch-depth: 0 
 
-      - name: 📦 Initialize and Update West Workspace
-        # Uses the '||' (OR) operator to print a clear failure message if west commands fail
-        run: |
-          echo "--- Initializing West Workspace ---"
-          west init -l config || { echo "FATAL: west init failed. Check for manifest (config/west.yml) errors."; exit 1; }
-          
-          echo "--- Updating Dependencies (Zephyr, ZMK, etc.) ---"
-          west update || { echo "FATAL: west update failed. Check internet access, git credentials, or repository names in manifest."; exit 1; }
+      # NEW WORKAROUND: Use zmk-setup-action to handle all dependencies
+      - name: ⚙️ Set up ZMK Environment
+        uses: zmkfirmware/zmk-setup-action@v2 
+        # This replaces manual west init/update and sources zephyr-env.sh for you.
 
-      - name: 🔍 DEBUG:Check Workspace Directory Structure
-        # This debug step remains for diagnostics if the environment setup fails again
-        run: |
-          echo "--- Current Working Directory (CWD) ---"
-          pwd
-          
-          echo "--- Searching for zephyr-env.sh (Expect success: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh) ---"
-          find . -name "zephyr-env.sh" || echo "Critical: zephyr-env.sh not found after west update."
-        
-        continue-on-error: true # Allow subsequent steps to run for diagnostics
+      # The Debug step is now obsolete as the action should guarantee the files exist.
+      # We skip it for a cleaner build but leave it commented for future debugging.
+      #- name: 🔍 DEBUG: Check Workspace Directory Structure
+      #  ...
 
-      - name: ⚙️ Build ZMK Firmware (Resolution Applied & Error Handled)
-        # This step uses the combined, correct approach to set up the environment and run the build
+      - name: ⚙️ Build ZMK Firmware (Simplified via Action)
+        # Note the '-s zmk/app' argument is used to specify the source directory.
         run: |
-          # 1. Source the environment script to define $ZEPHYR_BASE and allow CMake to find ZephyrConfig.cmake.
-          # The absolute path must be used: $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
-          echo "--- Sourcing Zephyr Environment ---"
-          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh || { echo "FATAL: zephyr-env.sh sourcing failed. Verify the ZMK/Zephyr modules were correctly checked out."; exit 1; }
-          
-          # 2. Change directory into the ZMK app directory.
-          echo "--- Changing Directory for West Build ---"
-          cd zmk/app || { echo "FATAL: zmk/app directory not found. West update failed to checkout ZMK module correctly."; exit 1; }
-          
-          # 3. Run the actual build command with correct shield/config paths.
-          echo "--- Starting West Build ---"
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output for specific compilation errors."; exit 1; }
+          west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output."; exit 1; }
 
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
-        if: success() # Only upload if the build step succeeded
+        if: success()
         with:
           name: zmk-firmware
-          # Assumes the build directory is zmk/app/build after the 'cd' command
-          path: zmk/app/build/zephyr/zmk.uf2
+          # The artifact path remains relative to the workspace root
+          path: build/zephyr/zmk.uf2
