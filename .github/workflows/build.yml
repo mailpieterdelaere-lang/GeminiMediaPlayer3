@@ -49,21 +49,44 @@ jobs:
 
           # 5. Sourcing Zephyr Environment
           echo "--- 5. Sourcing Zephyr Environment Variables ---"
+          # Sourcing is now safe because the paths exist and the shell is bash.
           . "$ZMK_REPO_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 6. Build Setup and CMake Execution
           echo "--- 6. Starting Final CMake Build ---"
           
           # --- Path Definitions ---
-          # CRITICAL FIX: The source code may be nested inside the cloned repository's 'app' folder.
-          # We check the most likely location first, then use a fallback.
-          APP_SOURCE_DIR="$ZMK_REPO_ROOT/app"
-          BUILD_DIR="$APP_SOURCE_DIR/build"
+          APP_REPO_DIR="$ZMK_REPO_ROOT/app" # The cloned ZMK repository
+          BUILD_DIR="$APP_REPO_DIR/build"
           
-          # 7. Backup Plan: Check for nested 'app' directory
-          if [ -f "$APP_SOURCE_DIR/app/CMakeLists.txt" ]; then
+          # Determine the true source directory where CMakeLists.txt resides
+          APP_SOURCE_DIR="$APP_REPO_DIR"
+
+          # 7. Backup Plan: Check for nested 'app' directory (where the error was likely hitting)
+          if [ -f "$APP_REPO_DIR/app/CMakeLists.txt" ]; then
              echo "TRACE: Found CMakeLists.txt in nested app directory. Adjusting source path."
-             APP_SOURCE_DIR="$APP_SOURCE_DIR/app"
-          elif [ ! -f "$APP_SOURCE_DIR/CMakeLists.txt" ]; then
+             APP_SOURCE_DIR="$APP_REPO_DIR/app"
+          elif [ ! -f "$APP_REPO_DIR/CMakeLists.txt" ]; then
              echo "FATAL: Cannot find CMakeLists.txt in either '$ZMK_REPO_ROOT/app' or '$ZMK_REPO_ROOT/app/app'."
-             echo "Listing files in $ZMK_REPO_
+             echo "Listing files in $ZMK_REPO_ROOT/app for diagnostic check:"
+             ls -l "$ZMK_REPO_ROOT/app"
+             exit 1
+          else
+             echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
+          fi
+
+          # 8. Execute CMake
+          echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
+          echo "TRACE: Configuring CMake from directory: $GITHUB_WORKSPACE"
+
+          # A. CMake Configure Step
+          cmake -B "$BUILD_DIR" \
+            -GNinja \
+            -DBOARD=nice_nano_v2 \
+            -DSHIELD=crkbd_left \
+            -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
+            -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
+            
+          # B. CMake Build Execution Step
+          echo "TRACE: Executing build in directory: $BUILD_DIR"
+          cmake --build "$BUILD_DIR" || { echo "FATAL: Build execution failed. Review compilation logs."; exit 1; }
