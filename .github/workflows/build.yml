@@ -26,7 +26,6 @@ jobs:
         shell: bash
         run: |
           # --- Configuration Variables ---
-          # ⚠️ FIX: Reverting Zephyr to v2.6.0 (ZMK v0.3 baseline)
           ZEPHYR_REVISION="v2.6.0" 
           MCUB_REVISION="v1.7.0"
           ZMK_REVISION="v0.3" 
@@ -83,7 +82,7 @@ jobs:
           # 9. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           
-          # A. CMake Configure Step (⚠️ FIX: Using generic nRF52840 board definition)
+          # A. CMake Configure Step (FINAL FIX: Adding BOARD_ROOT to find ZMK custom shields)
           cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nrf52840dk_nrf52840 \
@@ -92,6 +91,7 @@ jobs:
             -DZEPHYR_BASE="$ZEPHYR_DIR" \
             -DCMAKE_PREFIX_PATH="$ZEPHYR_DIR" \
             -DZEPHYR_DIR="$ZEPHYR_DIR" \
+            -DBOARD_ROOT="$APP_REPO_DIR" \
             -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
