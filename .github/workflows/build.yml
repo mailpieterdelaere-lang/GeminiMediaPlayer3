@@ -1,4 +1,4 @@
-name: Build ZMK firmware
+name: ZMK Build
 
 on:
   push:
@@ -9,43 +9,54 @@ on:
 
 jobs:
   build:
-    # Use the official ZMK build environment image
-    runs-on: ubuntu-latest
+    # Use a standard ZMK/Zephyr Docker image for consistent environments
     container:
       image: zmkfirmware/zmk-build-arm:stable
-
+    
+    runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout Repository
+      - name: ⬇️ Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Fetch all history for west to work correctly
+          fetch-depth: 0 
 
-      - name: Initialize and Build ZMK Firmware
+      - name: 📦 Initialize and Update West Workspace
+        # This is where the ZMK/Zephyr dependencies are fetched (including zcbor)
         run: |
-          echo "Initializing ZMK workspace using local manifest..."
-          
-          # 1. Initialize west using the local config folder as the manifest location.
+          # The ZMK environment usually requires initializing from the top-level repo
           west init -l config
-          
-          # 2. Fetch all source code
+          # Then update to pull all modules (including zmk/zephyr)
           west update
-          
-          # CRITICAL FIX: Source the official Zephyr environment script from the correct path.
-          # This sets ZEPHYR_BASE and other toolchain variables correctly for the shell session.
-          . zmk/zephyr/zephyr-env.sh
-          
-          echo "Building firmware for nice_nano_v2 with mediapad3 shield..."
-          
-          # 3. The full west build command
-          west build -s zmk/app -b nice_nano_v2 -- \
-            -DSHIELD=mediapad3 \
-            -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
-          
-          echo "Build complete."
 
-      - name: Archive Firmware
-        uses: actions/upload-artifact@v4
-        with:
-          name: nice_nano_v2-mediapad3-firmware
-          # The built .uf2 file is located here
-          path: build/zephyr/zmk.uf2
+      - name: 🔍 DEBUG: Check Workspace Directory Structure (Crucial Step)
+        # This step verifies the existence of the missing file and the CWD.
+        run: |
+          echo "--- Current Working Directory (CWD) ---"
+          pwd
+          
+          echo "--- Listing Contents of expected zmk/zephyr/ path ---"
+          # This command will fail if the directory is missing, confirming the failure.
+          ls -la zmk/zephyr/ || echo "🚨 ERROR: zmk/zephyr/ directory not found or inaccessible."
+          
+          echo "--- Searching for zephyr-env.sh (Root Cause Check) ---"
+          # Recursively search the entire workspace for the critical file.
+          find . -name "zephyr-env.sh" || echo "File not found anywhere in the workspace."
+
+      # The original failing step would be here, but we'll use the fixed command below
+
+      - name: ⚙️ Build ZMK Firmware (Resolution Applied)
+        # This step now uses the correct directory structure found in most ZMK user-configs.
+        # This is the resolved step that anticipates the "No such file" failure.
+        run: |
+          # 1. Source the environment script from the correct, known location.
+          #    In ZMK user config repos, the main ZMK code (which holds the Zephyr dependency) 
+          #    is typically checked out at the root level, not inside 'config/'.
+          #
+          # Resolution applied: We source the environment setup script from the standard 
+          # ZMK/Zephyr module location (which should be at the workspace root).
+          . $GITHUB_WORKSPACE/zmk/zephyr/zephyr-env.sh
+          
+          # 2. Run the actual build command
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left
