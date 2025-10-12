@@ -9,7 +9,6 @@ on:
 
 jobs:
   build:
-    # Use the ZMK build container
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -22,24 +21,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 
-          # Ensure Git is configured for the workspace
           
-      - name: 📦 Initialize and Update West Workspace (Guaranteed Path)
-        # This resolves the 'No such file' error by ensuring the west repositories are 
-        # checked out directly into the workspace root.
+      - name: 📦 Initialize and Update West Workspace (Final Attempt)
+        # This step uses the correct syntax and must place the dependencies correctly.
         run: |
-          echo "--- Initializing West Workspace at Root ---"
-          # Use 'west init .' to initialize the current working directory as the workspace
-          # The -l config tells west to find the manifest file in the 'config' folder
-          west init -l config . || { echo "FATAL: west init failed. Check manifest errors."; exit 1; }
+          echo "--- Initializing West Workspace ---"
+          west init -l config || { echo "FATAL: west init failed. Check manifest errors."; exit 1; }
           
           echo "--- Updating Dependencies ---"
           west update || { echo "FATAL: west update failed. Check repository access/manifest."; exit 1; }
           
-          echo "--- West initialization complete. zmk/zephyr/ is guaranteed to exist now. ---"
-          
       - name: ⚙️ Source Environment & Build Firmware
-        # This step now runs AFTER west update has confirmed to run successfully
+        # This step will confirm if west init/update was finally successful.
         run: |
           # 1. Source the environment script using the absolute workspace path
           echo "--- Sourcing Zephyr Environment ---"
@@ -48,7 +41,7 @@ jobs:
           # 2. Change directory and run the standard build
           echo "--- Starting West Build ---"
           cd zmk/app || { echo "FATAL: zmk/app directory not found."; exit 1; }
-          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed."; exit 1; }
+          west build -b nice_nano_v2 -- -DSHIELD=crkbd_left -DZMK_CONFIG=$GITHUB_WORKSPACE/config || { echo "FATAL: West build failed. Review CMake output."; exit 1; }
 
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
