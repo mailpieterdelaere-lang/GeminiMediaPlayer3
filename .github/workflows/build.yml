@@ -30,7 +30,7 @@ jobs:
           echo "--- Updating Dependencies (Zephyr, ZMK, etc.) ---"
           west update || { echo "FATAL: west update failed. Check internet access, git credentials, or repository names in manifest."; exit 1; }
 
-      - name: 🔍 DEBUG: Check Workspace Directory Structure
+      - name: 🔍 DEBUG:Check Workspace Directory Structure
         # This debug step remains for diagnostics if the environment setup fails again
         run: |
           echo "--- Current Working Directory (CWD) ---"
