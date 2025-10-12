@@ -1,4 +1,4 @@
-name: ZMK Resilient West Dependency Build
+name: ZMK Resilient West Dependency Build (West Fix)
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
 
 jobs:
   build:
-    # Use the ZMK build container, which should have west pre-installed
     container:
       image: zmkfirmware/zmk-build-arm:stable
     
@@ -23,52 +22,91 @@ jobs:
         with:
           fetch-depth: 0 
           
-      - name: ⚙️ West-Managed Build with Error Handling
+      - name: ⚙️ West-Managed Build with Corrected Syntax
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3" 
-          APP_REPO_DIR="$GITHUB_WORKSPACE/app_clone" # Temporary ZMK clone location
+          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone" # ZMK Application source clone
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace" # The West workspace root
           
           # --- 1. Basic Tool Validation ---
           echo "--- 1. Validating West Tool ---"
           command -v west || { echo "FATAL: 'west' tool not found in container path."; exit 1; }
-          echo "TRACE: 'west' tool is available."
           
-          # --- 2. Initialize West Workspace and Clone ZMK ---
-          echo "--- 2. Initializing West Workspace ---"
+          # --- 2. Clone ZMK and Initialize West Workspace ---
+          echo "--- 2. Cloning ZMK Application Source ---"
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
+
+          echo "--- 3. Initializing West Workspace with Correct Manifest Path ---"
           mkdir -p "$ZMK_ROOT" || { echo "FATAL: Failed to create ZMK workspace directory."; exit 1; }
+          
+          # ⚠️ FIX: Initialize the west workspace by pointing to the repository directory ($ZMK_CLONE_DIR)
+          # This tells west to use the west.yml *inside* that directory as the manifest repository.
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" "$ZMK_ROOT" || { echo "FATAL: West initialization failed. Check manifest integrity."; exit 1; }
+
+          # Enter the newly initialized workspace directory
           cd "$ZMK_ROOT" || { echo "FATAL: Failed to enter ZMK workspace."; exit 1; }
           
-          # Clone ZMK into a temp location for its manifest
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$APP_REPO_DIR" || { echo "FATAL: ZMK application clone failed."; exit 1; }
-
-          # Initialize the west workspace using the manifest from the cloned app
-          west init -m "$APP_REPO_DIR/west.yml" --mr "$ZMK_REVISION" || { echo "FATAL: West initialization failed. Manifest may be missing or incorrect for v0.3."; exit 1; }
-          
-          # --- 3. Update Dependencies ---
-          echo "--- 3. Updating Dependencies via West ---"
+          # --- 4. Update Dependencies ---
+          echo "--- 4. Updating Dependencies via West (Cloning Zephyr, MCUBoot, etc.) ---"
           west update || { echo "FATAL: West update failed. Dependency cloning failed (network or manifest issue)."; exit 1; }
           
-          # --- 4. Prepare Application and Custom Configuration ---
-          echo "--- 4. Setting up Application Structure ---"
+          # --- 5. Prepare Application and Custom Configuration ---
+          echo "--- 5. Setting up Application Structure ---"
           
-          # Create the final app folder and copy the ZMK source code into the west workspace
+          # Copy ZMK app contents into the expected 'app' directory within the workspace
           mkdir -p "$ZMK_ROOT/app" || { echo "FATAL: Failed to create app directory in workspace."; exit 1; }
-          cp -r "$APP_REPO_DIR/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
-
-          # Copy custom config files to the expected location for the build system
+          # Move the cloned ZMK app files into the workspace app folder
+          cp -r "$ZMK_CLONE_DIR/"* "$ZMK_ROOT/app" || { echo "FATAL: Failed to copy ZMK app files."; exit 1; }
+          
+          # Copy custom config files to the application source location
           if [ -f "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" ]; then
+             # Copy custom overlay into the app directory
              cp "$GITHUB_WORKSPACE/config/nice_nano_v2.overlay" "$ZMK_ROOT/app/nice_nano_v2.overlay" || { echo "FATAL: Failed to copy custom overlay."; exit 1; }
              echo "TRACE: Copied custom nice_nano_v2.overlay into application source."
           else
              echo "WARNING: nice_nano_v2.overlay not found in config. Relying on default settings."
           fi
           
-          # --- 5. Source Zephyr Environment ---
-          echo "--- 5. Sourcing Zephyr Environment Variables ---"
+          # --- 6. Source Zephyr Environment ---
+          echo "--- 6. Sourcing Zephyr Environment Variables ---"
           ZEPHYR_ENV_SCRIPT="$ZMK_ROOT/zephyr/zephyr-env.sh"
           if [ -f "$ZEPHYR_ENV_SCRIPT" ]; then
              . "$ZEPHYR_ENV_SCRIPT" || { echo "FATAL: zephyr-env.sh sourcing failed. Check script integrity."; exit 1; }
              echo "TRACE: Zephyr environment sourced successfully."
+          else
+             echo "FATAL: zephyr-env.sh script not found. West update failed to clone Zephyr core."
+             exit 1
+          fi
+
+          # --- 7. Build and Configure ---
+          echo "--- 7. Starting Final West Build ---"
+          
+          # Use the 'west build' command, targeting the app directory and using the nice_nano_v2 board.
+          west build -b nice_nano_v2 "$ZMK_ROOT/app" || { 
+            echo "FATAL: West build failed. Compilation or DTS configuration error."
+            exit 1
+          }
+          
+      - name: ⬆️ Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: zmk-firmware
+          # West builds to 'build/zephyr' relative to the workspace root
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+
+  artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ⬇️ Download Final Firmware Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ./firmware-artifacts
+          
+      - name: 📦 Display Artifact Contents
+        run: ls -lR ./firmware-artifacts
