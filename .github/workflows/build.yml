@@ -75,16 +75,17 @@ jobs:
              echo "TRACE: Found CMakeLists.txt in expected top-level ZMK app directory."
           fi
 
-          # 8. Execute CMake
+         # 8. Execute CMake
           echo "TRACE: Source Directory Final Path: $APP_SOURCE_DIR"
           echo "TRACE: Configuring CMake from directory: $GITHUB_WORKSPACE"
 
-          # A. CMake Configure Step
+          # A. CMake Configure Step (FINAL FIX: Explicitly define ZEPHYR_BASE for CMake)
           cmake -B "$BUILD_DIR" \
             -GNinja \
             -DBOARD=nice_nano_v2 \
             -DSHIELD=crkbd_left \
             -DZMK_CONFIG="$GITHUB_WORKSPACE/config" \
+            -DZEPHYR_BASE="$ZMK_REPO_ROOT/zephyr" \
             -S "$APP_SOURCE_DIR" || { echo "FATAL: CMake configuration failed."; exit 1; }
             
           # B. CMake Build Execution Step
