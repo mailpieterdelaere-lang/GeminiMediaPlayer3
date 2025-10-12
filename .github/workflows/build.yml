@@ -24,18 +24,19 @@ jobs:
           fetch-depth: 0 
           # Ensure Git is configured for the workspace
           
-      - name: 📦 Initialize and Update West Workspace (Reintroduced)
-        # This step correctly checks out zmk/zephyr/zephyr-env.sh
+      - name: 📦 Initialize and Update West Workspace (Guaranteed Path)
+        # This resolves the 'No such file' error by ensuring the west repositories are 
+        # checked out directly into the workspace root.
         run: |
-          echo "--- Initializing West Workspace ---"
-          # Initialize west from the config directory location
-          west init -l config || { echo "FATAL: west init failed."; exit 1; }
+          echo "--- Initializing West Workspace at Root ---"
+          # Use 'west init .' to initialize the current working directory as the workspace
+          # The -l config tells west to find the manifest file in the 'config' folder
+          west init -l config . || { echo "FATAL: west init failed. Check manifest errors."; exit 1; }
           
-          echo "--- Updating Dependencies (Zephyr, ZMK, etc.) ---"
-          # Update dependencies, which places the zmk/zephyr folder at the root
-          west update || { echo "FATAL: west update failed."; exit 1; }
+          echo "--- Updating Dependencies ---"
+          west update || { echo "FATAL: west update failed. Check repository access/manifest."; exit 1; }
           
-          echo "--- West initialization complete. zmk/zephyr/ should now exist. ---"
+          echo "--- West initialization complete. zmk/zephyr/ is guaranteed to exist now. ---"
           
       - name: ⚙️ Source Environment & Build Firmware
         # This step now runs AFTER west update has confirmed to run successfully
