@@ -34,34 +34,41 @@ jobs:
           
           # 1. Initialize and Update West Workspace
           echo "--- 1. Setting up West Workspace ---"
-          # Clone ZMK repository
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
-          # Initialize west workspace with the ZMK repository
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
           cd "$ZMK_ROOT"
-          # Fetch and update all modules (This is where the initial log ended)
           west update || exit 1
           
           # 2. Prepare Application Source
           echo "--- 2. Preparing Application Source and Configuration ---"
           mkdir -p "$ZMK_ROOT/app"
-          # Copy the core ZMK application files
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
           
           # 3. Copy/Patch Files DIRECTLY to Application Root
           echo "--- 3. Copying Files to App Root for Direct Discovery ---"
           
-          # Keymap: Must be renamed to BOARD_NAME.keymap
+          # Keymap
           KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
           cp "$CUSTOM_CONFIG_DIR/mediapad3.keymap" "$KEYMAP_DEST" || { echo "FATAL: Keymap file missing or failed copy."; exit 1; }
           
-          # Overlay: Must be named BOARD_NAME.overlay
-          # This file MUST now contain: compatible = "zmk,kscan-gpio-matrix"; and rows/columns properties.
+          # Overlay
           OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$OVERLAY_DEST" || { echo "FATAL: Overlay file missing or failed copy."; exit 1; }
+          OVERLAY_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
+          cp "$OVERLAY_SOURCE" "$OVERLAY_DEST" || { echo "FATAL: Overlay file missing or failed copy."; exit 1; }
           
-          # 🚨 REMOVED REDUNDANT PATCHING: The rows/columns properties are now assumed to be correct in the copied overlay file.
+          # 🚀 VERIFICATION LOGGING: Check the copied overlay file
+          echo "--- VERIFYING OVERLAY FILE ($OVERLAY_DEST) ---"
+          ls -l "$OVERLAY_DEST"
+          echo "Content of $BOARD_NAME.overlay:"
+          cat "$OVERLAY_DEST"
+          
+          # Critical check: Does the file contain the required row-gpios property?
+          if ! grep -q "row-gpios" "$OVERLAY_DEST"; then
+              echo "🚨 FATAL: Overlay file does not contain the required 'row-gpios' property!"
+              exit 1
+          fi
+          echo "✅ 'row-gpios' property confirmed in the copied overlay file."
           
           # 4. Source Zephyr Environment
           echo "--- 4. Sourcing Zephyr Environment Variables ---"
@@ -70,11 +77,21 @@ jobs:
           # 5. Build Application
           echo "--- 5. Starting Final West Build (Without SHIELD) ---"
           
-          # The build now expects the correct properties in the overlay and should pass.
           west build -b $BOARD_NAME "$ZMK_ROOT/app" || { 
             echo "FATAL: West build failed."
             exit 1
           }
+          
+          # 🚀 POST-BUILD VERIFICATION: Check the merged devicetree (if build passed)
+          DTS_FILE="$ZMK_ROOT/build/zephyr/zephyr.dts"
+          if [ -f "$DTS_FILE" ]; then
+              echo "--- POST-BUILD VERIFICATION: Checking final $BOARD_NAME configuration in zephyr.dts ---"
+              echo "Checking for kscan_0 node definition..."
+              grep -A 10 "kscan_0:" "$DTS_FILE"
+              echo "--- END DTS VERIFICATION ---"
+          else
+              echo "Warning: zephyr.dts file not found (build may have failed before generation)."
+          fi
           
       - name: ⬆️ Upload Artifacts
         uses: actions/upload-artifact@v4
