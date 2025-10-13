@@ -11,10 +11,8 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // Use the numeric pin flags (3 = Active High + Pull Down / Active Low + Pull Up)
-        row-gpios = <&gpios 11 3>, 
-                    <&gpios 13 3>, 
-                    <&gpios 15 3>;
+        // CRITICAL: Collapse the entire row-gpios array to a single line
+        row-gpios = <&gpios 11 3>, <&gpios 13 3>, <&gpios 15 3>;
                      
         col-gpios = <&gpios 26 3>; 
     };
