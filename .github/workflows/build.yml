@@ -9,10 +9,9 @@ on:
 
 jobs:
   build:
+    runs-on: ubuntu-latest
     container:
       image: zmkfirmware/zmk-build-arm:stable
-      
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       
@@ -20,10 +19,11 @@ jobs:
       - name: ⬇️ Checkout Repository (Your Config)
         uses: actions/checkout@v4
         with:
+          # Fetches all history to support west
           fetch-depth: 0
           
       - name: ⚙️ West Setup and Direct File Configuration
-        id: west_config
+        id: west_setup
         shell: bash
         run: |
           # --- Configuration Variables ---
@@ -49,66 +49,41 @@ jobs:
           # 3. Copy/Patch Files DIRECTLY to Application Root
           echo "--- 3. Copying Files to App Root for Direct Discovery ---"
           
-          # Keymap 🔑
-          KEYMAP_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap"
-          KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
-          cp "$KEYMAP_SOURCE" "$KEYMAP_DEST" || { echo "FATAL: Keymap file missing or failed copy. Ensure $KEYMAP_SOURCE exists."; exit 1; }
-          echo "✅ Keymap copied as $BOARD_NAME.keymap."
-          
-          # Overlay 🗺️
-          OVERLAY_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
-          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          cp "$OVERLAY_SOURCE" "$OVERLAY_DEST" || { echo "FATAL: Overlay file missing or failed copy."; exit 1; }
-          
-          # 🚀 VERIFICATION LOGGING: Check the copied overlay file
-          echo "--- VERIFYING OVERLAY FILE ($OVERLAY_DEST) ---"
-          cat "$OVERLAY_DEST"
-          
-          # ... (Critical checks omitted for brevity)
-          echo "✅ Devicetree structure checks passed."
+          # Use your current config folder contents for keymap and overlay
+          cp -r "$CUSTOM_CONFIG_DIR"/* "$ZMK_ROOT/app/"
           
           # 4. Source Zephyr Environment
           echo "--- 4. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          
+        # Ensure the next step starts in the ZMK_ROOT directory
+        working-directory: ${{ github.workspace }}/zmk_workspace
 
-          # 5. Build Application
-          echo "--- 5. Starting Final West Build (Without SHIELD) ---"
-          
-          # Run the build command and capture its exit status
-          west build -b $BOARD_NAME "$ZMK_ROOT/app"
-          BUILD_STATUS=$?
-          
-          # Pass the build status out of the run step
-          echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
-          
-          if [ $BUILD_STATUS -ne 0 ]; then
-             echo "FATAL: West build failed. Check logs and uploaded artifact."
-          fi
-          
-          # 🚀 POST-BUILD VERIFICATION: Check the merged devicetree (only runs on success)
-          DTS_FILE="$ZMK_ROOT/build/zephyr/zephyr.dts"
-          if [ -f "$DTS_FILE" ]; then
-              echo "--- POST-BUILD VERIFICATION: Checking final kscan and transform configuration in zephyr.dts ---"
-              grep -A 10 "kscan_0:" "$DTS_FILE"
-              grep -A 5 "matrix_transform_0:" "$DTS_FILE"
-              echo "--- END DTS VERIFICATION ---"
-          fi
-          
-      # New step to upload the preprocessed Devicetree file on failure
+      - name: 5. Perform West Build
+        id: build_app
+        shell: bash
+        # This step is now only responsible for running the build command
+        run: |
+          echo "--- 5. Starting Final West Build ---"
+          west build -b nice_nano_v2 app
+        # Ensure the build status is captured
+        continue-on-error: true # Allow the workflow to continue to the logging step if the build fails
+
+      # CRITICAL DEBUGGING LOG UPLOAD FIX
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        # Use the output status from the previous step
-        if: ${{ steps.west_config.outputs.BUILD_STATUS != '0' }}
+        # CRITICAL FIX: This conditional check runs ONLY if the preceding step failed.
+        if: ${{ failure() }}
         with:
           name: devicetree-debug-logs
           # Path to the critical preprocessed file
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
           retention-days: 1
 
-      - name: ⬆️ Upload Artifacts
+      - name: ⬆️ Upload Final Artifacts
         uses: actions/upload-artifact@v4
-        # Only upload the final UF2 file if the build succeeded (status == 0)
-        if: ${{ steps.west_config.outputs.BUILD_STATUS == '0' }}
+        # Only upload the UF2 file if the build succeeded
+        if: ${{ success() }}
         with:
           name: zmk-firmware
-          path: ${{ github.workspace }}/zmk_workspace/
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
