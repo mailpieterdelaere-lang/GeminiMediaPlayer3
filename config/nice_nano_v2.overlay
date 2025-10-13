@@ -6,24 +6,18 @@
     };
 
     kscan_0: kscan_0 {
-        // 🚨 CRITICAL CHANGE: Use the compatible that supports rows and columns
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // These are now officially supported by the kscan-gpio-matrix compatible
         rows = <1>;
         columns = <3>;
         
-        // For a 1-row, 3-column configuration, direct-gpios become row-gpios.
-        // The matrix driver expects row/col GPIOs. Since it's 1 row, these pins are effectively rows.
-        row-ggpios = <&pro_micro_d 2 3>, // D2 (Row 0, Col 0)
-                     <&pro_micro_d 4 3>, // D4 (Row 0, Col 1)
-                     <&pro_micro_d 6 3>; // D6 (Row 0, Col 2)
+        // 🚨 FIX: Must be 'row-gpios', not 'row-ggpios'
+        row-gpios = <&pro_micro_d 2 3>, // D2 (Row 0, Col 0)
+                    <&pro_micro_d 4 3>, // D4 (Row 0, Col 1)
+                    <&pro_micro_d 6 3>; // D6 (Row 0, Col 2)
                      
-        // You MUST define col-gpios for kscan-gpio-matrix, even if unused.
-        // Assign a dummy pin that won't interfere.
-        // NOTE: A proper ZMK setup for direct pins would use a different pattern (like one row and one column pin).
-        // Forcing a direct pin setup into a matrix structure is often done like this:
-        col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; // Example unused pin (D18/A0)
+        // This is also required for the matrix compatible
+        col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 };
