@@ -1,20 +1,19 @@
 #include <dt-bindings/zmk/matrix_transform.h>
-#include <dt-bindings/gpio/gpio.h> 
+#include <dt-bindings/gpio/gpio.h>
 
 / {
     chosen {
-        zmk,kscan = &kscan_0; 
-        zmk,matrix-transform = &matrix_transform_0; 
+        zmk,kscan = &kscan_0;
+        zmk,matrix-transform = &matrix_transform_0;
     };
 
     kscan_0: kscan_0 {
-        compatible = "zmk,kscan-gpio-matrix"; 
+        compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // CRITICAL: Collapse the entire row-gpios array to a single line
+        // CRITICAL FIX 1 & 2: Single-line definition with numeric flags (3 = pull-up/pull-down + active state)
         row-gpios = <&gpios 11 3>, <&gpios 13 3>, <&gpios 15 3>;
-                     
-        col-gpios = <&gpios 26 3>; 
+        col-gpios = <&gpios 26 3>;
     };
 
     matrix_transform_0: matrix_transform_0 {
@@ -22,5 +21,10 @@
         rows = <1>;
         columns = <3>;
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
+    };
+
+    // CRITICAL FIX 3: Disable the LED strip peripheral to avoid conflicts with the base DTS.
+    &led_strip {
+        status = "disabled";
     };
 };
