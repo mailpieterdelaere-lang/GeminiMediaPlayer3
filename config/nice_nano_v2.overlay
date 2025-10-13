@@ -10,9 +10,8 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
 
-        // Define GPIOs for your 3-key board
-        row-gpios = <&gpio0 3 0>;  // One row only (P0.03)
-        col-gpios = <&gpio0 4 0>, <&gpio0 5 0>, <&gpio0 28 0>; // Three columns
+        row-gpios = <&gpio0 3 0>;            // P0.03  (one row)
+        col-gpios = <&gpio0 4 0>, <&gpio0 5 0>, <&gpio0 28 0>; // three columns
 
         row-pull-ups;
         col-pull-downs;
@@ -22,8 +21,9 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Each pair corresponds to a key position: (row, column)
-        map = <ZMK_MATRIX_TRANSFORM(0 0 0 1 0 2)>;
+
+        // This defines a flat, 1×3 key matrix (no commas, no nested brackets)
+        map = <0 1 2>;
     };
 
     &led_strip {
