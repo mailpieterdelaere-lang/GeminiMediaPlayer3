@@ -1,13 +1,10 @@
-// Required for ZMK Devicetree macros (like ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP)
 #include <dt-bindings/zmk/matrix_transform.h>
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
 
 / {
     chosen {
-        // Link the chosen KSCAN node
         zmk,kscan = &kscan_0; 
-        // Link the matrix transform node to define the keymap size
         zmk,matrix-transform = &matrix_transform_0; 
     };
 
@@ -15,28 +12,18 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // This physical configuration is 3 rows (D2, D4, D6) and 1 column (D18).
-        // The length of 'row-gpios' defines the physical number of rows.
         row-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
                      
-        // The single column/strobe pin
         col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 
-    // Node defining the logical matrix size and mapping
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        // Logical size (what your keymap sees)
         rows = <1>;
         columns = <3>;
-        
-        // CRITICAL FIX: The array must be clean of ALL comments.
-        map = <
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)
-              >; // <--- Must have closing > and ;
+        // CRITICAL FIX: Single-line definition to prevent all multi-line parse errors
+        map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
