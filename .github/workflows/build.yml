@@ -32,10 +32,9 @@ jobs:
           CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
           OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          
-          # 1. Initialize and Update West Workspace (Working Logic)
-          # ... (rest of setup steps 1 and 2 remain the same: git clone, west init, west update, copy files)
-          
+          DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
+
+          # --- 1. Initialize and Update West Workspace ---
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
@@ -46,25 +45,37 @@ jobs:
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" || exit 1
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" || exit 1
           
-          # 2. Source Zephyr Environment
+          # --- 2. Source Zephyr Environment ---
           echo "--- 2. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
-          # 🚨 CRITICAL DEBUGGING STEP: Dump Overlay Contents 🚨
-          echo "--- 3. DUMPING $BOARD_NAME.overlay CONTENTS (Line 30 is the error) ---"
+          # --- 3. Dump Overlay Contents ---
+          echo "--- 3. DUMPING $BOARD_NAME.overlay CONTENTS ---"
           cat -n "$OVERLAY_PATH"
           echo "----------------------------------------------------------------------"
           
-          # 4. Perform West Build and Capture Status
+          # --- 4. Start West Build ---
           echo "--- 4. Starting Final West Build ---"
           west build -b $BOARD_NAME "$ZMK_ROOT/app"
           BUILD_STATUS=$?
           
           echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
           
+          # --- 5. Dump zephyr.dts for Debugging (Only if Build Fails) ---
           if [ $BUILD_STATUS -ne 0 ]; then
-             echo "FATAL: West build failed. Log upload will proceed."
+             echo "----------------------------------------------------------------------"
+             echo "❌ WEST BUILD FAILED. Dumping zephyr.dts for debugging..."
+             if [ -f "$DTS_PATH" ]; then
+                 echo "--- BEGIN zephyr.dts ---"
+                 cat -n "$DTS_PATH" || echo "(cat failed — file unreadable)"
+                 echo "--- END zephyr.dts ---"
+             else
+                 echo "zephyr.dts not found — build likely failed before DTS generation."
+             fi
+             echo "----------------------------------------------------------------------"
           fi
+          
+          exit $BUILD_STATUS
           
       # 💾 Upload Devicetree Preprocessor Logs (On Failure)
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
