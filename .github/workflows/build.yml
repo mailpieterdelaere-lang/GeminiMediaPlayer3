@@ -48,27 +48,27 @@ jobs:
           # 3. Copy/Patch Files DIRECTLY to Application Root
           echo "--- 3. Copying Files to App Root for Direct Discovery ---"
           
-          # Keymap
+          # Keymap 🔑: Use BOARD_NAME.keymap as source and destination to fix the "Failed to locate keymap file!" warning.
+          KEYMAP_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap"
           KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
-          cp "$CUSTOM_CONFIG_DIR/mediapad3.keymap" "$KEYMAP_DEST" || { echo "FATAL: Keymap file missing or failed copy."; exit 1; }
+          cp "$KEYMAP_SOURCE" "$KEYMAP_DEST" || { echo "FATAL: Keymap file missing or failed copy. Ensure $KEYMAP_SOURCE exists."; exit 1; }
+          echo "✅ Keymap copied as $BOARD_NAME.keymap."
           
-          # Overlay
-          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          # Overlay 🗺️: This file now contains the matrix_transform_0 node.
           OVERLAY_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
+          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
           cp "$OVERLAY_SOURCE" "$OVERLAY_DEST" || { echo "FATAL: Overlay file missing or failed copy."; exit 1; }
           
           # 🚀 VERIFICATION LOGGING: Check the copied overlay file
           echo "--- VERIFYING OVERLAY FILE ($OVERLAY_DEST) ---"
-          ls -l "$OVERLAY_DEST"
-          echo "Content of $BOARD_NAME.overlay:"
           cat "$OVERLAY_DEST"
           
-          # Critical check: Does the file contain the required row-gpios property?
-          if ! grep -q "row-gpios" "$OVERLAY_DEST"; then
-              echo "🚨 FATAL: Overlay file does not contain the required 'row-gpios' property!"
+          # Critical check: Does the file contain the required matrix-transform compatible?
+          if ! grep -q "zmk,matrix-transform" "$OVERLAY_DEST"; then
+              echo "🚨 FATAL: Overlay file is missing the required 'zmk,matrix-transform' node definition!"
               exit 1
           fi
-          echo "✅ 'row-gpios' property confirmed in the copied overlay file."
+          echo "✅ 'zmk,matrix-transform' property confirmed in the copied overlay file."
           
           # 4. Source Zephyr Environment
           echo "--- 4. Sourcing Zephyr Environment Variables ---"
@@ -82,15 +82,13 @@ jobs:
             exit 1
           }
           
-          # 🚀 POST-BUILD VERIFICATION: Check the merged devicetree (if build passed)
+          # 🚀 POST-BUILD VERIFICATION: Check the merged devicetree
           DTS_FILE="$ZMK_ROOT/build/zephyr/zephyr.dts"
           if [ -f "$DTS_FILE" ]; then
-              echo "--- POST-BUILD VERIFICATION: Checking final $BOARD_NAME configuration in zephyr.dts ---"
-              echo "Checking for kscan_0 node definition..."
+              echo "--- POST-BUILD VERIFICATION: Checking final kscan and transform configuration in zephyr.dts ---"
               grep -A 10 "kscan_0:" "$DTS_FILE"
+              grep -A 5 "matrix_transform_0:" "$DTS_FILE"
               echo "--- END DTS VERIFICATION ---"
-          else
-              echo "Warning: zephyr.dts file not found (build may have failed before generation)."
           fi
           
       - name: ⬆️ Upload Artifacts
