@@ -46,15 +46,12 @@
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <2>; // Match your row count
-        columns = <2>; // Match your column count
+        rows = <2>;
+        columns = <2>;
         
-        // CRITICAL FIX: Retain double angle brackets, but REMOVE ALL COMMAS 
-        // separating the row/column pairs inside the macro.
-        map = <<ZMK_MATRIX_TRANSFORM(
-            0 0  0 1  // Row 0 keys
-            1 0  1 1  // Row 1 keys
-        )>>;
+        // CRITICAL FIX: Put the entire ZMK_MATRIX_TRANSFORM call on a single line 
+        // to eliminate any malformed value errors due to hidden newlines (which the DTC sees as data).
+        map = <<ZMK_MATRIX_TRANSFORM(0 0 0 1 1 0 1 1)>>; 
     };
 
     // Optional: Add aliases if needed
