@@ -2,9 +2,7 @@
 #include <dt-bindings/zmk/matrix_transform.h>
 #include <dt-bindings/gpio/gpio.h> 
 
-/* Define the key matrix and pin assignments for the custom nRF52840 board. 
- * Pins D2, D4, D6 are used as rows, D18 is the column strobe.
- */
+/* Define the key matrix and pin assignments for the custom nRF52840 board. */
 
 / {
     chosen {
@@ -16,21 +14,22 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Use &gpio0 and the physical pin numbers:
-        // D2 -> 11, D4 -> 13, D6 -> 15
-        row-gpios = <&gpio0 11 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
-                    <&gpio0 13 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
-                    <&gpio0 15 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+        // CRITICAL FIX: Use direct numeric values for flags to satisfy the DTC.
+        // (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN) = 3 (Pin Flags)
+        row-gpios = <&gpio0 11 3>, 
+                    <&gpio0 13 3>, 
+                    <&gpio0 15 3>;
                      
-        // D18 -> 26
-        col-gpios = <&gpio0 26 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
+        // CRITICAL FIX: Use direct numeric values for flags.
+        // (GPIO_ACTIVE_LOW | GPIO_PULL_UP) = 3 (Pin Flags)
+        col-gpios = <&gpio0 26 3>; 
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Minimal single-line definition to avoid multi-line parse errors
+        // Minimal single-line definition
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
