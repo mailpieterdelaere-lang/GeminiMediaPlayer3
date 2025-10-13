@@ -1,7 +1,29 @@
 #include <dt-bindings/zmk/matrix_transform.h>
 
 / {
+    // ----------------------------------------------------------------------
+    // 1. INCLUDE THE CUSTOM PIN MAPPING (From your guide overlay)
+    // ----------------------------------------------------------------------
+    blackpill: connector {
+        compatible = "blackpill";
+        #gpio-cells = <2>;
+        gpio-map-mask = <0xffffffff 0xffffffc0>;
+        gpio-map-pass-thru = <0 0x3f>;
+        gpio-map
+            = <2  0 &gpioc 13 0>     /* PC13 */
+            , <3  0 &gpioc 14 0>     /* PC14 */
+            /* ... include all other mappings from the guide overlay ... */
+            , <10 0 &gpioa 0  0>     /* PA0  */
+            , <11 0 &gpioa 1  0>     /* PA1  */
+            , <46 0 &gpiob 9  0>     /* PB9  */
+            ;
+    };
+    
+    // ----------------------------------------------------------------------
+    // 2. DEFINE ZMK KEYBOARD NODES
+    // ----------------------------------------------------------------------
     chosen {
+        // Use the new connector node for the kscan configuration
         zmk,kscan = &kscan_0;
         zmk,matrix-transform = &matrix_transform_0;
     };
@@ -10,27 +32,31 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // ZMK Devicetree V2 format: <&controller pin>
-        row-gpios = <&gpio0 2>, <&gpio0 4>, <&gpio0 6>;
-        col-gpios = <&gpio0 18>;
-        
-        // Pin flag properties
-        row-pull-downs; // Active High Rows (Input with Pull Down)
-        col-pull-ups;   // Active Low Columns (Input with Pull Up)
+        // Define your matrix rows/columns using the GENERIC pin numbers 
+        // defined in the 'blackpill: connector' node (e.g., 2, 10, 11)
+        row-gpios = <&blackpill 2 0>, // Row 0 uses generic pin 2 (PC13)
+                    <&blackpill 3 0>; // Row 1 uses generic pin 3 (PC14)
+                    
+        col-gpios = <&blackpill 10 0>, // Col 0 uses generic pin 10 (PA0)
+                    <&blackpill 11 0>; // Col 1 uses generic pin 11 (PA1)
+
+        row-pull-ups; // Or row-pull-downs, depending on your wiring
+        col-pull-downs; // Or col-pull-ups, depending on your wiring
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <1>;
-        columns = <3>;
+        rows = <2>; // Match your row count
+        columns = <2>; // Match your column count
         
-        // Use the consolidated ZMK_MATRIX_TRANSFORM macro (Fixed in the previous step's logic)
+        // Define your 2x2 matrix map
         map = <ZMK_MATRIX_TRANSFORM(
-            (0,0), (1,0), (2,0)
+            (0,0), (0,1),
+            (1,0), (1,1)
         )>;
     };
 
-    &led_strip {
-        status = "disabled";
-    };
+    // Optional: Add aliases if needed
+    // blackpill_i2c: &i2c1 {}; 
+    // blackpill_serial: &usart1 {};
 };
