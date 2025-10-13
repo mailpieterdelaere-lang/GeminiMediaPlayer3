@@ -1,4 +1,4 @@
-name: ZMK Build:Direct Configuration (Stable CI)
+name: ZMK Build:Direct Configuration (Final Debug)
 
 on:
   push:
@@ -21,53 +21,46 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: 🚀 Setup, Build, and Log Collection
-        id: build_all
+      - name: 🚀 West Setup, Build, and Log Capture
+        id: build_run
         shell: bash
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
-          ZMK_DIR="./zmk" 
-          CUSTOM_CONFIG_DIR="./config"
+          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
           
-          # 1. Clone ZMK and Initialize West
+          # 1. Initialize and Update West Workspace (Your Original, Working Logic)
           echo "--- 1. Setting up West Workspace ---"
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_DIR" || exit 1
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
+          mkdir -p "$ZMK_ROOT"
           
-          # Change directory to the cloned ZMK directory
-          cd "$ZMK_DIR" || exit 1
+          # FIX: Your original west init command that successfully sets up the Zephyr environment
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
           
-          # Initialize west with the local manifest (app/west.yml)
-          west init -l app || exit 1
+          cd "$ZMK_ROOT" || exit 1
           west update || exit 1
           
           # 2. Prepare Application Source and Copy Config
           echo "--- 2. Preparing Application Source and Configuration ---"
-          # Create app folder in the root workspace
-          mkdir -p "$GITHUB_WORKSPACE/app"
+          mkdir -p "$ZMK_ROOT/app"
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
           
-          # Copy ZMK app source to the workspace root's app folder
-          cp -r ./app/* "$GITHUB_WORKSPACE/app/" || exit 1
-
-          # Copy your custom config files (keymap/overlay) to the app root
-          cp -r "$GITHUB_WORKSPACE/$CUSTOM_CONFIG_DIR"/* "$GITHUB_WORKSPACE/app/"
+          # Copy custom files
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" || exit 1
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" || exit 1
           
-          # Return to the root workspace for subsequent commands
-          cd "$GITHUB_WORKSPACE" || exit 1 
-          
-          # 3. Source Zephyr Environment (CRITICAL FIX)
-          # Sourcing the environment variables using the explicit path to the ZMK directory
+          # 3. Source Zephyr Environment (Your Original Working Logic)
           echo "--- 3. Sourcing Zephyr Environment Variables ---"
-          . "$ZMK_DIR/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
           # 4. Perform West Build and Capture Status
           echo "--- 4. Starting Final West Build ---"
           
-          # Build from the current workspace root, targeting the 'app' folder
-          # The environment variables are now active in this shell session
-          west build -b $BOARD_NAME ./app
-          
+          # Run build, capture exit status, but DO NOT exit the step yet (for logging)
+          west build -b $BOARD_NAME "$ZMK_ROOT/app"
           BUILD_STATUS=$?
           
           # Pass build status to be used by subsequent steps
@@ -80,18 +73,18 @@ jobs:
       # 💾 Upload Devicetree Preprocessor Logs (On Failure)
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_all.outputs.BUILD_STATUS != '0' }}
+        # CRITICAL FIX: Executes only if the build step failed (BUILD_STATUS != 0)
+        if: ${{ steps.build_run.outputs.BUILD_STATUS != '0' }}
         with:
           name: devicetree-debug-logs
-          # Path uses the standard './build' directory relative to the current workspace
-          path: ${{ github.workspace }}/build/zephyr/zephyr.dts.pre
+          # Use the path defined by your original working logic
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
           retention-days: 1
 
-      # ⬆️ Upload Final Artifacts (Runs on Success)
       - name: ⬆️ Upload Final Artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_all.outputs.BUILD_STATUS == '0' }}
+        # Only upload the UF2 file if the build succeeded (BUILD_STATUS == 0)
+        if: ${{ steps.build_run.outputs.BUILD_STATUS == '0' }}
         with:
           name: zmk-firmware
-          # Path uses the standard './build' directory
-          path: ${{ github.workspace }}/build/zephyr/zmk.uf2
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
