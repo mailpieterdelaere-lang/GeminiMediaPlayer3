@@ -1,119 +1,73 @@
-name: ZMK Build:Direct Configuration (Bypassing Shield System)
+name: Build GeminiMediaPlayer3
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
-    container:
-      image: zmkfirmware/zmk-build-arm:stable
-    
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    uses: zmkfirmware/zmk-build-action/.github/workflows/build-user-config.yml@main
+    with:
+      # Use the nice_nano_v2 board, as specified in your error logs
+      board: nice_nano_v2
       
+      # Since you are building a custom application without a shield, 
+      # we pass a dummy 'none' shield to satisfy the action's requirements.
+      shield: none
+      
+      # The application directory where your CMakeLists.txt and nice_nano_v2.overlay reside.
+      app_dir: app
+      
+    secrets:
+      # Optional: GitHub token usually included by default
+      token: ${{ secrets.GITHUB_TOKEN }}
+      
+    # CRITICAL DEBUGGING STEP: Upload logs if the build fails
+    # This overwrites the job definition from the reusable workflow only for the purpose of adding failure-specific steps
     steps:
-      - name: ⬇️ Checkout Repository (Your Config)
+      - name: Checkout ZMK Config
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
-          
-      - name: ⚙️ West Setup and Direct File Configuration
-        shell: bash
+          path: config
+      
+      - name: Checkout ZMK Firmware
+        uses: actions/checkout@v4
+        with:
+          repository: zmkfirmware/zmk
+          path: zmk-firmware
+      
+      - name: Set up ZMK Environment
         run: |
-          # --- Configuration Variables ---
-          ZMK_REVISION="v0.3" 
-          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config" 
-          BOARD_NAME="nice_nano_v2"
+          cd zmk-firmware
+          west init -l app --mr zmk-v3.5.0 # Ensure version is correct
+          west update
+          pip3 install -r zephyr/scripts/requirements.txt
           
-          # 1. Initialize and Update West Workspace
-          echo "--- 1. Setting up West Workspace ---"
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
-          mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
-          cd "$ZMK_ROOT"
-          west update || exit 1
+      - name: Build Application
+        id: build_app
+        run: |
+          # The core build command
+          west build -b nice_nano_v2 app
           
-          # 2. Prepare Application Source
-          echo "--- 2. Preparing Application Source and Configuration ---"
-          mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
+      # CRITICAL DEBUGGING LOG UPLOAD
+      # This step is conditional and runs only IF the 'build_app' step fails
+      - name: Upload Devicetree Preprocessor Logs (On Failure) 💾
+        uses: actions/upload-artifact@v4
+        if: always() && failure()
+        with:
+          name: devicetree-debug-logs
+          # Path to the build output directory where zephyr.dts.pre is located
+          path: zmk-firmware/build/zephyr/zephyr.dts.pre 
+          retention-days: 1
           
-          # 3. Copy/Patch Files DIRECTLY to Application Root
-          echo "--- 3. Copying Files to App Root for Direct Discovery ---"
-          
-          # Keymap 🔑
-          KEYMAP_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap"
-          KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
-          cp "$KEYMAP_SOURCE" "$KEYMAP_DEST" || { echo "FATAL: Keymap file missing or failed copy. Ensure $KEYMAP_SOURCE exists."; exit 1; }
-          echo "✅ Keymap copied as $BOARD_NAME.keymap."
-          
-          # Overlay 🗺️
-          OVERLAY_SOURCE="$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
-          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          cp "$OVERLAY_SOURCE" "$OVERLAY_DEST" || { echo "FATAL: Overlay file missing or failed copy."; exit 1; }
-          
-          # 🚀 VERIFICATION LOGGING: Check the copied overlay file
-          echo "--- VERIFYING OVERLAY FILE ($OVERLAY_DEST) ---"
-          cat "$OVERLAY_DEST"
-          
-          # Critical check 1: Check for the required matrix-transform macro syntax
-          if ! grep -q "ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP" "$OVERLAY_DEST"; then
-              echo "🚨 FATAL: Overlay file is missing the required 'ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP' macro definition!"
-              exit 1
-          fi
-          
-          # Critical check 2: Check for the required matrix-transform compatible
-          if ! grep -q "zmk,matrix-transform" "$OVERLAY_DEST"; then
-              echo "🚨 FATAL: Overlay file is missing the required 'zmk,matrix-transform' node definition!"
-              exit 1
-          fi
-          
-          echo "✅ Devicetree structure checks passed."
-          
-          # 4. Source Zephyr Environment
-          echo "--- 4. Sourcing Zephyr Environment Variables ---"
-          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
-
-          # 5. Build Application
-          echo "--- 5. Starting Final West Build (Without SHIELD) ---"
-          
-          # Note: If the build fails here, the DTS post-check is skipped, which is fine.
-          if ! west build -b $BOARD_NAME "$ZMK_ROOT/app"; then
-            echo "FATAL: West build failed."
-            exit 1
-          fi
-          
-          # 🚀 POST-BUILD VERIFICATION: Check the merged devicetree
-          DTS_FILE="$ZMK_ROOT/build/zephyr/zephyr.dts"
-          if [ -f "$DTS_FILE" ]; then
-              echo "--- POST-BUILD VERIFICATION: Checking final kscan and transform configuration in zephyr.dts ---"
-              grep -A 10 "kscan_0:" "$DTS_FILE"
-              grep -A 5 "matrix_transform_0:" "$DTS_FILE"
-              echo "--- END DTS VERIFICATION ---"
-          fi
-
-          - name: Upload Build Artifacts on Failure
-            uses: actions/upload-artifact@v3
-            if: failure()
-            with:
-            name: build-failure-logs
-            path: |
-             /__w/GeminiMediaPlayer3/GeminiMediaPlayer3/zmk_workspace/build/zephyr/zephyr.dts.pre
-             /__w/GeminiMediaPlayer3/GeminiMediaPlayer3/zmk_workspace/build/zephyr/zephyr.dts.pre
-            # Include other relevant log files if available
-            retention-days: 5
-
-          
-      - name: ⬆️ Upload Artifacts
+      - name: Upload ZMK Firmware .uf2 File
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: zmk-firmware
-          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+          name: firmware
+          path: zmk-firmware/build/zephyr/zmk.uf2
