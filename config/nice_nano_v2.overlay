@@ -1,42 +1,41 @@
-#include <dt-bindings/zmk/matrix_transform.h>
+#include <behaviors.dtsi>
+#include <keys.dtsi>
 
-/ {
-    chosen {
-        zmk,kscan = &kscan_0;
-        zmk,matrix-transform = &matrix_transform_0;
+&behaviors {
+    // Short labels avoid DEVICE_NAME length issues
+    mlayer0: bml0 {
+        compatible = "zmk,behavior-momentary-layer";
+        label = "BML0";  // short label
+        binding = <&kp KC_FN1>;  // example key
     };
 
-    kscan_0: kscan_0 {
-        compatible = "zmk,kscan-gpio-matrix";
-        label = "KSCAN_0";
-        
-        // Use the multi-line, three-argument format for robustness.
-        // The '0' is the flag for GPIO_ACTIVE_HIGH (default).
-        // Replace 3, 4, 5, 28 with your actual nRF52 P0 pin numbers.
-        row-gpios = <&gpio0 3 0> // Row 0
-                    , <&gpio0 4 0> // Row 1
-                    ;
-        col-gpios = <&gpio0 5 0> // Col 0
-                    , <&gpio0 28 0> // Col 1
-                    ;
-
-        // Set the pull direction according to your physical wiring
-        row-pull-ups;
-        col-pull-downs;
+    toggle0: btl0 {
+        compatible = "zmk,behavior-toggle-layer";
+        label = "BTL0";
+        binding = <&kp KC_FN2>;
     };
 
-    matrix_transform_0: matrix_transform_0 {
-        compatible = "zmk,matrix-transform";
-        rows = <2>;
-        columns = <2>;
-        
-        // FINAL FIX: Use commas to separate the row/column pairs inside the macro.
-        // This is the definitive fix for the "malformed value" error in this context.
-        map = <<ZMK_MATRIX_TRANSFORM(0,0, 0,1, 1,0, 1,1)>>; 
+    to_layer0: btlr0 {
+        compatible = "zmk,behavior-to-layer";
+        label = "BTLR0";
+        binding = <&kp KC_FN3>;
     };
 
-    // Disable the LED strip (WS2812/SK6812) by default
-    &led_strip {
-        status = "disabled";
+    repeat0: br0 {
+        compatible = "zmk,behavior-key-repeat";
+        label = "BR0";
+        binding = <&kp KC_A>;
+    };
+
+    transparent0: btr0 {
+        compatible = "zmk,behavior-transparent";
+        label = "BTR0";
+        binding = <&kp KC_TRNS>;
+    };
+
+    none0: bn0 {
+        compatible = "zmk,behavior-none";
+        label = "BN0";
+        binding = <&kp KC_NO>;
     };
 };
