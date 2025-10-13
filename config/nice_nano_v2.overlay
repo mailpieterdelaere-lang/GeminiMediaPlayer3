@@ -10,7 +10,6 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Use explicit &gpio0 and multi-line V2 format for maximum parse stability.
         // Pin numbering remains Arduino (2, 4, 6, 18).
         row-gpios = <&gpio0 2>,
                     <&gpio0 4>,
@@ -18,7 +17,6 @@
                     
         col-gpios = <&gpio0 18>;
         
-        // Define the pull states separately using V2 properties.
         row-pull-downs; // Active High Rows require pull-downs
         col-pull-ups;   // Active Low Columns require pull-ups
     };
@@ -27,10 +25,14 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
+        
+        // CRITICAL FIX: Use the consolidated ZMK_MATRIX_TRANSFORM macro
+        // which defines the transform in a single call.
+        map = <ZMK_MATRIX_TRANSFORM(
+            (0,0), (1,0), (2,0)
+        )>;
     };
 
-    // Peripheral fix included
     &led_strip {
         status = "disabled";
     };
