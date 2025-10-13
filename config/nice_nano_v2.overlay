@@ -1,4 +1,3 @@
-// 🚨 CRITICAL FIX: Add the include for ZMK Devicetree macros
 #include <dt-bindings/zmk/matrix_transform.h>
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
@@ -24,8 +23,11 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
+        // 🚨 CRITICAL FIX: The entire array must be enclosed in angle brackets <>
+        map = <
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 1)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 2)>;
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 2)
+              >; // <-- Added the closing bracket and semicolon
     };
 };
