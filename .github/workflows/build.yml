@@ -67,11 +67,10 @@ jobs:
              echo "FATAL: West build failed. Log upload will proceed."
           fi
           
-      # 💾 Upload Devicetree Preprocessor Logs (Runs on Failure)
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        # Check the status output by the previous consolidated step
-        if: ${{ steps.build_all.outputs.BUILD_STATUS != '0' }}
+        # CRITICAL FIX: Use 'always()' to ensure the step executes, then check the status variable
+        if: ${{ always() && steps.build_all.outputs.BUILD_STATUS != '0' }}
         with:
           name: devicetree-debug-logs
           # Path must now be set relative to the *initial* $GITHUB_WORKSPACE
