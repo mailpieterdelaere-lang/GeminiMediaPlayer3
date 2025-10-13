@@ -13,24 +13,22 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Using ONLY two arguments (controller + pin number)
-        // This is necessary if the board's base DTS defines pins this way.
+        // CRITICAL FIX 1: Define simple flag properties FIRST
+        row-pull-downs; 
+        col-pull-ups;   
+        
+        // CRITICAL FIX 2: Define complex array properties SECOND
+        // This uses the two-argument syntax, which we suspect the nice_nano_v2 base expects.
         row-gpios = <&gpios 11>, <&gpios 13>, <&gpios 15>;
                      
         col-gpios = <&gpios 26>; 
     };
-    
-    // Now we must re-add the pull-up/pull-down flags explicitly outside the array:
-    // This is how ZMK typically handles the 2-argument format.
-    row-pull-downs; // Implies GPIO_PULL_DOWN for rows
-    col-pull-ups;   // Implies GPIO_PULL_UP for columns
-    
-    // NOTE: If the compiler still fails, try removing the above two lines.
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
+        // Minimal single-line map definition (ZMK syntax fix confirmed)
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
