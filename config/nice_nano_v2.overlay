@@ -30,9 +30,9 @@
         rows = <2>;
         columns = <2>;
         
-        // The stable syntax: double angle brackets, ZMK_MATRIX_TRANSFORM macro,
-        // single set of parentheses, and space-separated arguments.
-        map = <<ZMK_MATRIX_TRANSFORM(0 0 0 1 1 0 1 1)>>; 
+        // FINAL FIX: Use commas to separate the row/column pairs inside the macro.
+        // This is the definitive fix for the "malformed value" error in this context.
+        map = <<ZMK_MATRIX_TRANSFORM(0,0, 0,1, 1,0, 1,1)>>; 
     };
 
     // Disable the LED strip (WS2812/SK6812) by default
