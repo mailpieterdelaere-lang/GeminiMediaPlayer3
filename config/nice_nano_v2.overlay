@@ -10,15 +10,13 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // Pin numbering remains Arduino (2, 4, 6, 18).
-        row-gpios = <&gpio0 2>,
-                    <&gpio0 4>,
-                    <&gpio0 6>;
-                    
+        // ZMK Devicetree V2 format: <&controller pin>
+        row-gpios = <&gpio0 2>, <&gpio0 4>, <&gpio0 6>;
         col-gpios = <&gpio0 18>;
         
-        row-pull-downs; // Active High Rows require pull-downs
-        col-pull-ups;   // Active Low Columns require pull-ups
+        // Pin flag properties
+        row-pull-downs; // Active High Rows (Input with Pull Down)
+        col-pull-ups;   // Active Low Columns (Input with Pull Up)
     };
 
     matrix_transform_0: matrix_transform_0 {
@@ -26,8 +24,7 @@
         rows = <1>;
         columns = <3>;
         
-        // CRITICAL FIX: Use the consolidated ZMK_MATRIX_TRANSFORM macro
-        // which defines the transform in a single call.
+        // Use the consolidated ZMK_MATRIX_TRANSFORM macro (Fixed in the previous step's logic)
         map = <ZMK_MATRIX_TRANSFORM(
             (0,0), (1,0), (2,0)
         )>;
