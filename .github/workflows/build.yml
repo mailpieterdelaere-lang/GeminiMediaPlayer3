@@ -11,58 +11,52 @@ on:
 
 jobs:
   build:
-    uses: zmkfirmware/zmk-build-action/.github/workflows/build-user-config.yml@main
-    with:
-      # Use the nice_nano_v2 board, as specified in your error logs
-      board: nice_nano_v2
+    runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+      options: --user 1001:1001
       
-      # Since you are building a custom application without a shield, 
-      # we pass a dummy 'none' shield to satisfy the action's requirements.
-      shield: none
-      
-      # The application directory where your CMakeLists.txt and nice_nano_v2.overlay reside.
-      app_dir: app
-      
-    secrets:
-      # Optional: GitHub token usually included by default
-      token: ${{ secrets.GITHUB_TOKEN }}
-      
-    # CRITICAL DEBUGGING STEP: Upload logs if the build fails
-    # This overwrites the job definition from the reusable workflow only for the purpose of adding failure-specific steps
     steps:
       - name: Checkout ZMK Config
         uses: actions/checkout@v4
         with:
-          path: config
+          # Clones your config repository into the 'app' folder
+          path: app
       
       - name: Checkout ZMK Firmware
         uses: actions/checkout@v4
         with:
           repository: zmkfirmware/zmk
           path: zmk-firmware
-      
-      - name: Set up ZMK Environment
+          # Use the latest stable tag (ZMK v3.5.0 uses Zephyr 3.5.0)
+          ref: main 
+
+      - name: Initialize and Update Modules
         run: |
           cd zmk-firmware
-          west init -l app --mr zmk-v3.5.0 # Ensure version is correct
+          # Initialize west with the application directory
+          west init -l app --mr zmk-v3.5.0 
           west update
           pip3 install -r zephyr/scripts/requirements.txt
-          
-      - name: Build Application
+        # Set environment variables for the build
+        env:
+          ZEPHYR_TOOLCHAIN_VARIANT: zephyr
+          ZEPHYR_SDK_INSTALL_DIR: /opt/zephyr-sdk
+
+      - name: Perform West Build
         id: build_app
-        run: |
-          # The core build command
-          west build -b nice_nano_v2 app
-          
-      # CRITICAL DEBUGGING LOG UPLOAD
-      # This step is conditional and runs only IF the 'build_app' step fails
+        # This command builds the application using the 'nice_nano_v2' board
+        run: west build -b nice_nano_v2 app
+        working-directory: zmk-firmware
+        
+      # CRITICAL DEBUGGING LOG UPLOAD (Runs ONLY IF the build fails)
       - name: Upload Devicetree Preprocessor Logs (On Failure) 💾
         uses: actions/upload-artifact@v4
-        if: always() && failure()
+        if: failure()
         with:
           name: devicetree-debug-logs
-          # Path to the build output directory where zephyr.dts.pre is located
-          path: zmk-firmware/build/zephyr/zephyr.dts.pre 
+          # Path to the critical preprocessed file
+          path: zmk-firmware/build/zephyr/zephyr.dts.pre
           retention-days: 1
           
       - name: Upload ZMK Firmware .uf2 File
