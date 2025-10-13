@@ -10,14 +10,11 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // Use the native nRF52 GPIO controller (&gpio0) with P0 pin numbers.
-        // The pins below are examples using P0.03, P0.04, P0.05, P0.28
-        row-gpios = <&gpio0 3>, <&gpio0 4>; 
+        row-gpios = <&gpio0 3>, <&gpio0 4>; 
         col-gpios = <&gpio0 5>, <&gpio0 28>;
 
-        // Standard ZMK V2 pin flags
-        row-pull-ups;   // Example setup: Rows with pull-ups
-        col-pull-downs; // Example setup: Columns with pull-downs
+        row-pull-ups;
+        col-pull-downs;
     };
 
     matrix_transform_0: matrix_transform_0 {
@@ -25,8 +22,9 @@
         rows = <2>;
         columns = <2>;
         
-        // Use the final, confirmed single-line, no-comma macro syntax
-        map = <<ZMK_MATRIX_TRANSFORM(0 0 0 1 1 0 1 1)>>; 
+        // FINAL FIX: Use double angle brackets AND nested parentheses inside the macro.
+        // This forces the preprocessor to treat the map as one element, preventing the 'malformed value' error.
+        map = <<ZMK_MATRIX_TRANSFORM( (0 0 0 1 1 0 1 1) )>>; 
     };
 
     &led_strip {
