@@ -14,14 +14,10 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Use direct numeric values for flags to satisfy the DTC.
-        // (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN) = 3 (Pin Flags)
-        row-gpios = <&gpio0 11 3>, 
-                    <&gpio0 13 3>, 
-                    <&gpio0 15 3>;
+        // Final check on row-gpios syntax (Physical pins 11, 13, 15)
+        row-gpios = <&gpio0 11 3>, <&gpio0 13 3>, <&gpio0 15 3>;
                      
-        // CRITICAL FIX: Use direct numeric values for flags.
-        // (GPIO_ACTIVE_LOW | GPIO_PULL_UP) = 3 (Pin Flags)
+        // Final check on col-gpios syntax (Physical pin 26) - This is the line causing the error
         col-gpios = <&gpio0 26 3>; 
     };
 
