@@ -1,41 +1,40 @@
-#include <behaviors.dtsi>
-#include <keys.dtsi>
+#include <dt-bindings/zmk/matrix_transform.h>
 
-&behaviors {
-    // Short labels avoid DEVICE_NAME length issues
-    mlayer0: bml0 {
-        compatible = "zmk,behavior-momentary-layer";
-        label = "BML0";  // short label
-        binding = <&kp KC_FN1>;  // example key
+/ {
+    chosen {
+        zmk,kscan = &kscan_0;
+        zmk,matrix-transform = &matrix_transform_0;
     };
 
-    toggle0: btl0 {
-        compatible = "zmk,behavior-toggle-layer";
-        label = "BTL0";
-        binding = <&kp KC_FN2>;
+    kscan_0: kscan_0 {
+        compatible = "zmk,kscan-gpio-matrix";
+        label = "KSCAN_0";
+        
+        // Using the native nRF52 GPIO controller (&gpio0) with explicit pin flags (0).
+        row-gpios = <&gpio0 3 0> // P0.03
+                    , <&gpio0 4 0> // P0.04
+                    ;
+        col-gpios = <&gpio0 5 0> // P0.05
+                    , <&gpio0 28 0> // P0.28
+                    ;
+
+        // Set the pull direction according to your physical wiring
+        row-pull-ups;
+        col-pull-downs;
     };
 
-    to_layer0: btlr0 {
-        compatible = "zmk,behavior-to-layer";
-        label = "BTLR0";
-        binding = <&kp KC_FN3>;
+    matrix_transform_0: matrix_transform_0 {
+        compatible = "zmk,matrix-transform";
+        rows = <2>;
+        columns = <2>;
+        
+        // This syntax resolved the "malformed value" error:
+        // Double angle brackets (<<...>>) with comma-separated pairs inside the macro.
+        map = <<ZMK_MATRIX_TRANSFORM(0,0, 0,1, 1,0, 1,1)>>; 
     };
 
-    repeat0: br0 {
-        compatible = "zmk,behavior-key-repeat";
-        label = "BR0";
-        binding = <&kp KC_A>;
-    };
-
-    transparent0: btr0 {
-        compatible = "zmk,behavior-transparent";
-        label = "BTR0";
-        binding = <&kp KC_TRNS>;
-    };
-
-    none0: bn0 {
-        compatible = "zmk,behavior-none";
-        label = "BN0";
-        binding = <&kp KC_NO>;
+    // Disable the LED strip for boards not using it or to save power/flash space
+    &led_strip {
+        status = "disabled";
     };
 };
