@@ -1,34 +1,28 @@
-// CRITICAL: Explicitly include all necessary headers
 #include <dt-bindings/zmk/matrix_transform.h>
 #include <dt-bindings/gpio/gpio.h> 
-
-/* Define the 1x3 matrix for the custom nRF52840 board. */
 
 / {
     chosen {
         zmk,kscan = &kscan_0; 
-        zmk,matrix-transform = &matrix_transform_0; // Keep the transform for 1x3 logic
+        zmk,matrix-transform = &matrix_transform_0; 
     };
 
     kscan_0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // CRITICAL: Use the official three-argument syntax with the confirmed working &gpios alias.
-        // D2 -> 11, D4 -> 13, D6 -> 15 (Rows, Active High, Pull Down)
-        row-gpios = <&gpios 11 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
-                    <&gpios 13 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
-                    <&gpios 15 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+        // Use the numeric pin flags (3 = Active High + Pull Down / Active Low + Pull Up)
+        row-gpios = <&gpios 11 3>, 
+                    <&gpios 13 3>, 
+                    <&gpios 15 3>;
                      
-        // D18 -> 26 (Column, Active Low, Pull Up)
-        col-gpios = <&gpios 26 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
+        col-gpios = <&gpios 26 3>; 
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Minimal single-line map definition
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
