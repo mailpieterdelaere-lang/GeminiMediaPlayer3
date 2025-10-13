@@ -10,30 +10,27 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // Using the native nRF52 GPIO controller (&gpio0) with explicit pin flags (0).
-        row-gpios = <&gpio0 3 0> // P0.03
-                    , <&gpio0 4 0> // P0.04
+        // --- 3 Rows, 1 Column Pin Definitions ---
+        row-gpios = <&gpio0 2 0> 
+                    , <&gpio0 4 0> 
+                    , <&gpio0 6 0> 
                     ;
-        col-gpios = <&gpio0 5 0> // P0.05
-                    , <&gpio0 28 0> // P0.28
+        col-gpios = <&gpio0 18 0> 
                     ;
 
-        // Set the pull direction according to your physical wiring
         row-pull-ups;
         col-pull-downs;
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <2>;
-        columns = <2>;
+        rows = <3>;    // 3 Rows
+        columns = <1>; // 1 Column
         
-        // This syntax resolved the "malformed value" error:
-        // Double angle brackets (<<...>>) with comma-separated pairs inside the macro.
-        map = <<ZMK_MATRIX_TRANSFORM(0,0, 0,1, 1,0, 1,1)>>; 
+        // Stable, comma-separated Devicetree syntax
+        map = <<ZMK_MATRIX_TRANSFORM(0,0, 1,0, 2,0)>>; 
     };
 
-    // Disable the LED strip for boards not using it or to save power/flash space
     &led_strip {
         status = "disabled";
     };
