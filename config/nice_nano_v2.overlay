@@ -2,30 +2,33 @@
 
 / {
     chosen {
-        zmk,kscan = &kscan_0;
-        zmk,matrix-transform = &matrix_transform_0;
+        zmk,kscan = &kscan0;
+        zmk,matrix-transform = &matrix_transform0;
     };
 
-    kscan_0: kscan_0 {
+    kscan0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
 
-        row-gpios = <&gpio0 3 0>;            // P0.03  (one row)
-        col-gpios = <&gpio0 4 0>, <&gpio0 5 0>, <&gpio0 28 0>; // three columns
+        row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH)>;     // Row: P0.03
+        col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH)>,     // Col 1: P0.04
+                     <&gpio0 5 (GPIO_ACTIVE_HIGH)>,     // Col 2: P0.05
+                     <&gpio0 28 (GPIO_ACTIVE_HIGH)>;    // Col 3: P0.28
 
         row-pull-ups;
         col-pull-downs;
     };
 
-    matrix_transform_0: matrix_transform_0 {
+    matrix_transform0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-
-        // This defines a flat, 1×3 key matrix (no commas, no nested brackets)
         map = <0 1 2>;
     };
+};
 
+/ {
+    /* Optional overrides or disables come *after* the root node */
     &led_strip {
         status = "disabled";
     };
