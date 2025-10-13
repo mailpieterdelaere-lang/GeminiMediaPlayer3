@@ -32,12 +32,11 @@
         rows = <1>;
         columns = <3>;
         
-        // CRITICAL FIX: Clean syntax for the array, free of all internal comments,
-        // mapping the logical 1x3 keymap (Row 0, Cols 0-2) to the physical 3x1 kscan.
+        // CRITICAL FIX: The array must be clean of ALL comments.
         map = <
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)
-              >;
+              >; // <--- Must have closing > and ;
     };
 };
