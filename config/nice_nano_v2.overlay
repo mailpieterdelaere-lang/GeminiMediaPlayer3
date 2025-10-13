@@ -10,7 +10,7 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
 
-        row-gpios = <&gpio0 2 0> <&gpio0 4 0> <&gpio0 6 0>;
+        row-gpios = <&gpio0 2 0>, <&gpio0 4 0>, <&gpio0 6 0>;
         col-gpios = <&gpio0 18 0>;
     };
 
