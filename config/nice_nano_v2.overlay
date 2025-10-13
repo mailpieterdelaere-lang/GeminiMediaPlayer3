@@ -10,13 +10,15 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // CRITICAL FIX 1: Use the two-argument V2 format for row/col pins.
-        // We use &gpio0 (explicit alias) and Arduino pin numbers (2, 4, 6, 18).
-        row-gpios = <&gpio0 2>, <&gpio0 4>, <&gpio0 6>;
+        // CRITICAL FIX: Use explicit &gpio0 and multi-line V2 format for maximum parse stability.
+        // Pin numbering remains Arduino (2, 4, 6, 18).
+        row-gpios = <&gpio0 2>,
+                    <&gpio0 4>,
+                    <&gpio0 6>;
+                    
         col-gpios = <&gpio0 18>;
         
-        // CRITICAL FIX 2: Define the pin flags using dedicated V2 properties.
-        // This is what the nice!nano base likely expects.
+        // Define the pull states separately using V2 properties.
         row-pull-downs; // Active High Rows require pull-downs
         col-pull-ups;   // Active Low Columns require pull-ups
     };
