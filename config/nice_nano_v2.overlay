@@ -1,4 +1,4 @@
-// CRITICAL FIX: Required to define the ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP macro
+// Required for ZMK Devicetree macros (like ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP)
 #include <dt-bindings/zmk/matrix_transform.h>
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
@@ -7,7 +7,7 @@
     chosen {
         // Link the chosen KSCAN node
         zmk,kscan = &kscan_0; 
-        // CRITICAL FIX: Link the matrix transform node to define the keymap size
+        // Link the matrix transform node to define the keymap size
         zmk,matrix-transform = &matrix_transform_0; 
     };
 
@@ -15,7 +15,8 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // This configuration models a 3-row, 1-column physical setup (3 unique input pins).
+        // This physical configuration is 3 rows (D2, D4, D6) and 1 column (D18).
+        // The length of 'row-gpios' defines the physical number of rows.
         row-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
@@ -24,16 +25,19 @@
         col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 
+    // Node defining the logical matrix size and mapping
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        // Logical (Keymap) size
+        // Logical size (what your keymap sees)
         rows = <1>;
         columns = <3>;
         
+        // CRITICAL FIX: Clean syntax for the array, free of all internal comments,
+        // mapping the logical 1x3 keymap (Row 0, Cols 0-2) to the physical 3x1 kscan.
         map = <
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) // Keymap (Row 0, Col 0) -> Physical (Row 0, Col 0)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) // Keymap (Row 0, Col 1) -> Physical (Row 1, Col 0)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0) // Keymap (Row 0, Col 2) -> Physical (Row 2, Col 0)
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0)
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)
               >;
     };
 };
