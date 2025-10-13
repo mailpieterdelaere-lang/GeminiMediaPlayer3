@@ -1,4 +1,7 @@
+// CRITICAL FIX: Required for defining ZMK matrix macros
 #include <dt-bindings/zmk/matrix_transform.h>
+// CRITICAL FIX: Required for defining GPIO flags (GPIO_ACTIVE_HIGH, GPIO_PULL_DOWN, etc.)
+#include <dt-bindings/gpio/gpio.h> 
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
 
@@ -12,6 +15,7 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
+        // This line is Line 27 in the final file structure
         row-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&pro_micro_d 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
@@ -23,7 +27,7 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // CRITICAL FIX: Single-line definition to prevent all multi-line parse errors
+        // Clean single-line definition
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
