@@ -27,9 +27,7 @@
     };
 };
 
-/ {
-    /* Optional overrides or disables come *after* the root node */
-    &led_strip {
-        status = "disabled";
-    };
+/* ✅ Node references like &led_strip must be outside any / { } block */
+&led_strip {
+    status = "disabled";
 };
