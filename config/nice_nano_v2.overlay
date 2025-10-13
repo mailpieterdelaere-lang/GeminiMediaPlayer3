@@ -2,27 +2,41 @@
 
 / {
     chosen {
-        zmk,kscan = &kscan0;
-        zmk,matrix-transform = &matrix_transform0;
+        zmk,kscan = &kscan_0;
+        zmk,matrix-transform = &matrix_transform_0;
     };
 
-    kscan0: kscan_0 {
+    kscan_0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
+        
+        // Use the multi-line, three-argument format for robustness.
+        // The '0' is the flag for GPIO_ACTIVE_HIGH (default).
+        // Replace 3, 4, 5, 28 with your actual nRF52 P0 pin numbers.
+        row-gpios = <&gpio0 3 0> // Row 0
+                    , <&gpio0 4 0> // Row 1
+                    ;
+        col-gpios = <&gpio0 5 0> // Col 0
+                    , <&gpio0 28 0> // Col 1
+                    ;
 
-        row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH)>;     // Row: P0.03
-        col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH)>,     // Col 1: P0.04
-                     <&gpio0 5 (GPIO_ACTIVE_HIGH)>,     // Col 2: P0.05
-                     <&gpio0 28 (GPIO_ACTIVE_HIGH)>;    // Col 3: P0.28
-
+        // Set the pull direction according to your physical wiring
         row-pull-ups;
         col-pull-downs;
     };
 
-    matrix_transform0: matrix_transform_0 {
+    matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <1>;
-        columns = <3>;
-        map = <0 1 2>;
+        rows = <2>;
+        columns = <2>;
+        
+        // The stable syntax: double angle brackets, ZMK_MATRIX_TRANSFORM macro,
+        // single set of parentheses, and space-separated arguments.
+        map = <<ZMK_MATRIX_TRANSFORM(0 0 0 1 1 0 1 1)>>; 
+    };
+
+    // Disable the LED strip (WS2812/SK6812) by default
+    &led_strip {
+        status = "disabled";
     };
 };
