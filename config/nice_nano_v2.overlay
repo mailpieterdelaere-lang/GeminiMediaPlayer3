@@ -1,5 +1,4 @@
 #include <dt-bindings/zmk/matrix_transform.h>
-#include <dt-bindings/gpio/gpio.h>
 
 / {
     chosen {
@@ -11,10 +10,15 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Use the ARDUINO D-pin numbers instead of physical P-numbers
-        // D2=2, D4=4, D6=6, D18=18
-        row-gpios = <&gpios 2 3>, <&gpios 4 3>, <&gpios 6 3>;
-        col-gpios = <&gpios 18 3>;
+        // CRITICAL FIX 1: Use the two-argument V2 format for row/col pins.
+        // We use &gpio0 (explicit alias) and Arduino pin numbers (2, 4, 6, 18).
+        row-gpios = <&gpio0 2>, <&gpio0 4>, <&gpio0 6>;
+        col-gpios = <&gpio0 18>;
+        
+        // CRITICAL FIX 2: Define the pin flags using dedicated V2 properties.
+        // This is what the nice!nano base likely expects.
+        row-pull-downs; // Active High Rows require pull-downs
+        col-pull-ups;   // Active Low Columns require pull-ups
     };
 
     matrix_transform_0: matrix_transform_0 {
@@ -24,6 +28,7 @@
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 
+    // Peripheral fix included
     &led_strip {
         status = "disabled";
     };
