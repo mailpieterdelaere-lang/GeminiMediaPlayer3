@@ -1,4 +1,3 @@
-// Required headers for ZMK and GPIO macros
 #include <dt-bindings/zmk/matrix_transform.h>
 #include <dt-bindings/gpio/gpio.h> 
 
@@ -14,19 +13,24 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // CRITICAL FIX: Use &gpios alias, which is often the standard for ZMK configurations.
-        // Physical pins 11, 13, 15 (D2, D4, D6)
-        row-gpios = <&gpios 11 3>, <&gpios 13 3>, <&gpios 15 3>;
+        // CRITICAL FIX: Using ONLY two arguments (controller + pin number)
+        // This is necessary if the board's base DTS defines pins this way.
+        row-gpios = <&gpios 11>, <&gpios 13>, <&gpios 15>;
                      
-        // Physical pin 26 (D18)
-        col-gpios = <&gpios 26 3>; 
+        col-gpios = <&gpios 26>; 
     };
+    
+    // Now we must re-add the pull-up/pull-down flags explicitly outside the array:
+    // This is how ZMK typically handles the 2-argument format.
+    row-pull-downs; // Implies GPIO_PULL_DOWN for rows
+    col-pull-ups;   // Implies GPIO_PULL_UP for columns
+    
+    // NOTE: If the compiler still fails, try removing the above two lines.
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Minimal single-line definition
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
