@@ -9,27 +9,16 @@
     kscan_0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
-        
-        // --- 3 Rows, 1 Column Pin Definitions ---
-        row-gpios = <&gpio0 2 0> 
-                    , <&gpio0 4 0> 
-                    , <&gpio0 6 0> 
-                    ;
-        col-gpios = <&gpio0 18 0> 
-                    ;
 
-        row-pull-ups;
-        col-pull-downs;
+        row-gpios = <&gpio0 2 0> <&gpio0 4 0> <&gpio0 6 0>;
+        col-gpios = <&gpio0 18 0>;
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <3>;    // Match your 3x1 matrix
-        columns = <1>; // Match your 3x1 matrix
-        
-        // FINAL ROBUST SYNTAX: Double angle brackets (<<...>>), single parentheses,
-        // and space-separated arguments (no commas).
-        map = <<ZMK_MATRIX_TRANSFORM(0 0 1 0 2 0)>>; 
+        rows = <3>;
+        columns = <1>;
+        map = <ZMK_MATRIX_TRANSFORM(0 0 1 0 2 0)>;
     };
 
     &led_strip {
