@@ -1,9 +1,10 @@
-// CRITICAL FIX: Required for defining ZMK matrix macros
+// Required headers for ZMK and GPIO macros
 #include <dt-bindings/zmk/matrix_transform.h>
-// CRITICAL FIX: Required for defining GPIO flags (GPIO_ACTIVE_HIGH, GPIO_PULL_DOWN, etc.)
 #include <dt-bindings/gpio/gpio.h> 
 
-/* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
+/* Define the key matrix and pin assignments for the custom nRF52840 board. 
+ * Pins D2, D4, D6 are used as rows, D18 is the column strobe.
+ */
 
 / {
     chosen {
@@ -15,19 +16,21 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        // This line is Line 27 in the final file structure
-        row-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
-                    <&pro_micro_d 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
-                    <&pro_micro_d 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+        // CRITICAL FIX: Use &gpio0 and the physical pin numbers:
+        // D2 -> 11, D4 -> 13, D6 -> 15
+        row-gpios = <&gpio0 11 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
+                    <&gpio0 13 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, 
+                    <&gpio0 15 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
                      
-        col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
+        // D18 -> 26
+        col-gpios = <&gpio0 26 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Clean single-line definition
+        // Minimal single-line definition to avoid multi-line parse errors
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
