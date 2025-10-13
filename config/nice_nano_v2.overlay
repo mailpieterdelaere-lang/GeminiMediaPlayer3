@@ -1,7 +1,7 @@
 #include <dt-bindings/zmk/matrix_transform.h>
 #include <dt-bindings/gpio/gpio.h> 
 
-/* Define the key matrix and pin assignments for the custom nRF52840 board. */
+/* Workaround for persistent Devicetree parsing errors using the zmk,kscan-gpio binding. */
 
 / {
     chosen {
@@ -10,25 +10,28 @@
     };
 
     kscan_0: kscan_0 {
-        compatible = "zmk,kscan-gpio-matrix"; 
+        // CRITICAL WORKAROUND: Use the older, more forgiving zmk,kscan-gpio binding.
+        compatible = "zmk,kscan-gpio"; 
         label = "KSCAN_0";
         
-        // CRITICAL FIX 1: Define simple flag properties FIRST
-        row-pull-downs; 
-        col-pull-ups;   
+        // Define ALL 3 keys as input pins with pull-downs.
+        // This models a 1-column setup using the alternate kscan method.
+        input-gpios = <&gpios 11 (GPIO_PULL_DOWN)>, 
+                      <&gpios 13 (GPIO_PULL_DOWN)>, 
+                      <&gpios 15 (GPIO_PULL_DOWN)>;
         
-        // CRITICAL FIX 2: Define complex array properties SECOND
-        // This uses the two-argument syntax, which we suspect the nice_nano_v2 base expects.
-        row-gpios = <&gpios 11>, <&gpios 13>, <&gpios 15>;
-                     
-        col-gpios = <&gpios 26>; 
+        // Define the single column/strobe pin as output (active low).
+        output-gpios = <&gpios 26 (GPIO_ACTIVE_LOW)>;
+        
+        // Define the number of columns this matrix uses for keymap logic.
+        col-gpios = <1>; 
     };
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Minimal single-line map definition (ZMK syntax fix confirmed)
+        // Map the 3 physical inputs (now treated as rows) to the logical 1x3 keymap.
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0) ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)>;
     };
 };
