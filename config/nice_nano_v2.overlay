@@ -1,3 +1,4 @@
+// 🚨 CRITICAL: Ensure this line is at the top
 #include <dt-bindings/zmk/matrix_transform.h>
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
@@ -23,11 +24,11 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // 🚨 CRITICAL FIX: The entire array must be enclosed in angle brackets <>
+        // 🚀 THE FIX: Enclose all macro calls in a single set of angle brackets <>
         map = <
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 1)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 2)
-              >; // <-- Added the closing bracket and semicolon
+              >; // <-- Must have the closing > and ;
     };
 };
