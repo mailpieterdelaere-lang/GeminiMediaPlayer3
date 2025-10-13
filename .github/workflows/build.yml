@@ -27,16 +27,14 @@ jobs:
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
-          # Clone ZMK and initialize West directly inside it
           ZMK_DIR="./zmk" 
           CUSTOM_CONFIG_DIR="./config"
           BOARD_NAME="nice_nano_v2"
           
           # 1. Clone ZMK and Initialize West
           echo "--- 1. Setting up West Workspace ---"
-          # Clone the ZMK repository containing the manifest file
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_DIR" || exit 1
-
+          
           # Change directory to the cloned ZMK directory
           cd "$ZMK_DIR" || exit 1
           
@@ -46,8 +44,10 @@ jobs:
           
           # 2. Prepare Application Source and Copy Config
           echo "--- 2. Preparing Application Source and Configuration ---"
-          # Create and copy the ZMK app source to the workspace root
+          # Create app folder in the root workspace
           mkdir -p "$GITHUB_WORKSPACE/app"
+          
+          # Copy ZMK app source to the workspace root's app folder
           cp -r ./app/* "$GITHUB_WORKSPACE/app/" || exit 1
 
           # Copy your custom config files (keymap/overlay) to the app root
@@ -56,7 +56,8 @@ jobs:
           # Return to the root workspace for subsequent commands
           cd "$GITHUB_WORKSPACE" || exit 1 
           
-          # 3. Source Zephyr Environment
+          # 3. Source Zephyr Environment (CRITICAL FIX)
+          # Sourcing the environment variables using the explicit path to the ZMK directory
           echo "--- 3. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_DIR/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
@@ -64,6 +65,7 @@ jobs:
           echo "--- 4. Starting Final West Build ---"
           
           # Build from the current workspace root, targeting the 'app' folder
+          # The environment variables are now active in this shell session
           west build -b $BOARD_NAME ./app
           
           BUILD_STATUS=$?
