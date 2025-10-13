@@ -1,11 +1,13 @@
-// 🚨 CRITICAL: Ensure this line is at the top
+// CRITICAL FIX: Required to define the ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP macro
 #include <dt-bindings/zmk/matrix_transform.h>
 
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
 
 / {
     chosen {
+        // Link the chosen KSCAN node
         zmk,kscan = &kscan_0; 
+        // CRITICAL FIX: Link the matrix transform node to define the keymap size
         zmk,matrix-transform = &matrix_transform_0; 
     };
 
@@ -13,21 +15,37 @@
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
         
-        row-gpios = <&pro_micro_d 2 3>, // D2 (Row 0, Col 0)
-                    <&pro_micro_d 4 3>, // D4 (Row 0, Col 1)
-                    <&pro_micro_d 6 3>; // D6 (Row 0, Col 2)
+        // Correct pin assignments for rows (must be 3 properties for 3 columns)
+        // Note: The KSCAN matrix compatible requires that the row count is derived
+        // from the length of the 'row-gpios' property, so we are using 3 row definitions
+        // to match the 3 keys, where each row is driven by a separate pin.
+        // This configuration models a direct wiring (column-driven, 3 unique row inputs).
+        row-gpios = <&pro_micro_d 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, // Pin D2
+                    <&pro_micro_d 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>, // Pin D4
+                    <&pro_micro_d 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>; // Pin D6
                      
+        // Correct pin assignment for the column/strobe pin
+        // This single pin must be active low (drive to ground) to trigger the row pull-up.
         col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 
-        matrix_transform_0: matrix_transform_0 {
+    // CRITICAL FIX: Node defining the logical matrix size and mapping
+    matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        map = <  // <--- Opening angle bracket
+        
+        // CRITICAL SYNTAX FIX: Map logical (keymap) positions to physical (kscan) positions.
+        // Since we defined 3 'rows' in kscan_0 and 1 'column', the mapping is complex.
+        // If your 3 keys are wired as R(0)C(0), R(1)C(0), R(2)C(0) physically,
+        // and you want them to be L(0)C(0), L(0)C(1), L(0)C(2) logically in the keymap:
+        map = <
+               // Logical Key 0 (Row 0, Col 0) -> Physical Matrix (Row 0, Col 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 1)
-               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 2)
-              >; // <--- Closing angle bracket AND semicolon
+               // Logical Key 1 (Row 0, Col 1) -> Physical Matrix (Row 1, Col 0)
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(1, 0)
+               // Logical Key 2 (Row 0, Col 2) -> Physical Matrix (Row 2, Col 0)
+               ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(2, 0)
+              >;
     };
 };
