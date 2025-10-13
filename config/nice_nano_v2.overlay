@@ -10,8 +10,13 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
         
-        row-gpios = <&gpio0 3>, <&gpio0 4>; 
-        col-gpios = <&gpio0 5>, <&gpio0 28>;
+        // Define GPIOs using a multi-line format for robustness.
+        row-gpios = <&gpio0 3 0> // P0.03
+                    , <&gpio0 4 0> // P0.04
+                    ;
+        col-gpios = <&gpio0 5 0> // P0.05
+                    , <&gpio0 28 0> // P0.28
+                    ;
 
         row-pull-ups;
         col-pull-downs;
@@ -22,9 +27,8 @@
         rows = <2>;
         columns = <2>;
         
-        // FINAL FIX: Use double angle brackets AND nested parentheses inside the macro.
-        // This forces the preprocessor to treat the map as one element, preventing the 'malformed value' error.
-        map = <<ZMK_MATRIX_TRANSFORM( (0 0 0 1 1 0 1 1) )>>; 
+        // Final confirmed matrix map syntax
+        map = <<ZMK_MATRIX_TRANSFORM( (0 0 0 1 1 0 1 1) )>>; 
     };
 
     &led_strip {
