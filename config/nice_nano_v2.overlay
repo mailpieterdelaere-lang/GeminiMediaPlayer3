@@ -1,19 +1,17 @@
+// 🚨 CRITICAL FIX: Add the include for ZMK Devicetree macros
+#include <dt-bindings/zmk/matrix_transform.h>
+
 /* Define the key matrix and pin assignments for the mediapad3 on nice_nano_v2. */
 
 / {
     chosen {
         zmk,kscan = &kscan_0; 
-        // 🚨 NEW: Link the matrix transform node
         zmk,matrix-transform = &matrix_transform_0; 
     };
 
     kscan_0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix"; 
         label = "KSCAN_0";
-        
-        // 🚨 REMOVE: 'rows' and 'columns' properties must be removed from here.
-        // rows = <1>;
-        // columns = <3>;
         
         row-gpios = <&pro_micro_d 2 3>, // D2 (Row 0, Col 0)
                     <&pro_micro_d 4 3>, // D4 (Row 0, Col 1)
@@ -22,13 +20,10 @@
         col-gpios = <&pro_micro_d 18 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>; 
     };
 
-    // 🚀 NEW NODE: Defines the keymap size
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        // Required for matrix-transform, maps logical (keymap) positions to physical (kscan) positions.
-        // Since we have a simple 1x3, the mapping is direct: (Keymap Row 0, Col 0) -> (Kscan Row 0, Col 0), etc.
         map = <ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 0)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 1)
                ZMK_MATRIX_TRANSFORM_ROW_COLUMN_MAP(0, 2)>;
