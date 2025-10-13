@@ -21,20 +21,17 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: 🚀 Setup, Build, and Log Collection (Single Step)
-        id: build_all
+      - name: ⚙️ West Setup and File Configuration
+        id: west_setup
         shell: bash
-        # All logic is now consolidated into one shell script to stabilize paths
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
-          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
-          BOARD_NAME="nice_nano_v2"
+          ZMK_CLONE_DIR="./app_clone"
+          ZMK_ROOT="./zmk_workspace"
+          CUSTOM_CONFIG_DIR="./config"
           
           # 1. Initialize and Update West Workspace
-          echo "--- 1. Setting up West Workspace ---"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
@@ -44,43 +41,41 @@ jobs:
           west update || exit 1
           
           # 2. Prepare Application Source and Copy Config
-          echo "--- 2. Preparing Application Source and Configuration ---"
           mkdir -p "app"
           cp -r "$ZMK_CLONE_DIR/app/"* "app" || exit 1
           cp -r "$CUSTOM_CONFIG_DIR"/* "app/"
           
           # 3. Source Zephyr Environment
-          echo "--- 3. Sourcing Zephyr Environment Variables ---"
           . "./zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          
+        # Set the working directory for the subsequent build step
+        working-directory: ${{ github.workspace }}/zmk_workspace
 
-          # 4. Perform West Build and Capture Status
-          echo "--- 4. Starting Final West Build ---"
-          
-          # Run the build, but do NOT exit if it fails (continue-on-error behavior)
-          west build -b $BOARD_NAME "app"
-          BUILD_STATUS=$?
-          
-          # Pass build status to be used by subsequent steps
-          echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
-          
-          if [ $BUILD_STATUS -ne 0 ]; then
-             echo "FATAL: West build failed. Log upload will proceed."
-          fi
-          
+      - name: 5. Perform West Build
+        id: build_app
+        shell: bash
+        run: |
+          echo "--- 5. Starting Final West Build ---"
+          west build -b nice_nano_v2 app
+        # IMPORTANT: Allow workflow to continue to logging step even if this fails
+        continue-on-error: true
+
+      # CRITICAL DEBUGGING LOG UPLOAD
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        # CRITICAL FIX: Use 'always()' to ensure the step executes, then check the status variable
-        if: ${{ always() && steps.build_all.outputs.BUILD_STATUS != '0' }}
+        # FIX: Executes always, but the contents are only available if the build step failed.
+        # We must rely on the overall step status, not a shell variable.
+        if: ${{ always() }}
         with:
           name: devicetree-debug-logs
-          # Path must now be set relative to the *initial* $GITHUB_WORKSPACE
+          # Use the stable workspace path
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
           retention-days: 1
 
-      # ⬆️ Upload Final Artifacts (Runs on Success)
       - name: ⬆️ Upload Final Artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_all.outputs.BUILD_STATUS == '0' }}
+        # Only upload the UF2 file if the build succeeded
+        if: ${{ success() }}
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
