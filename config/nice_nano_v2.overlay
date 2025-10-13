@@ -24,11 +24,12 @@
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <3>;    // 3 Rows
-        columns = <1>; // 1 Column
+        rows = <3>;    // Match your 3x1 matrix
+        columns = <1>; // Match your 3x1 matrix
         
-        // Stable, comma-separated Devicetree syntax
-        map = <<ZMK_MATRIX_TRANSFORM(0,0, 1,0, 2,0)>>; 
+        // FINAL ROBUST SYNTAX: Double angle brackets (<<...>>), single parentheses,
+        // and space-separated arguments (no commas).
+        map = <<ZMK_MATRIX_TRANSFORM(0 0 1 0 2 0)>>; 
     };
 
     &led_strip {
