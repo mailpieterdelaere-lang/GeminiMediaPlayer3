@@ -8,17 +8,25 @@
 
     kscan0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
+        label = "KSCAN0";
 
-        row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH)>;
-        col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH)>,
-                     <&gpio0 5 (GPIO_ACTIVE_HIGH)>,
-                     <&gpio0 28 (GPIO_ACTIVE_HIGH)>;
+        row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH)>;           // One row
+        col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH)>,           // Three columns
+                    <&gpio0 5 (GPIO_ACTIVE_HIGH)>,
+                    <&gpio0 28 (GPIO_ACTIVE_HIGH)>;
+
+        row-pull-ups;
+        col-pull-downs;
     };
 
     matrix_transform0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        map = <0 1 2>;
+        map = <0 1 2>;   // Flat 1x3 matrix
+    };
+
+    &led_strip {
+        status = "disabled";
     };
 };
