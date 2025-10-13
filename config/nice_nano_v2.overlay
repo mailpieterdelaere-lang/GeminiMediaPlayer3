@@ -49,11 +49,12 @@
         rows = <2>; // Match your row count
         columns = <2>; // Match your column count
         
-        // Define your 2x2 matrix map
-        map = <ZMK_MATRIX_TRANSFORM(
+        // CRITICAL FIX: Change single brackets (<...>) to double brackets (<<...>>)
+        // This is required for the ZMK_MATRIX_TRANSFORM macro's expanded output.
+        map = <<ZMK_MATRIX_TRANSFORM(
             (0,0), (0,1),
             (1,0), (1,1)
-        )>;
+        )>>;
     };
 
     // Optional: Add aliases if needed
