@@ -1,41 +1,63 @@
 #include <behaviors.dtsi>
 #include <keys.dtsi>
 
-&behaviors {
-    // Short labels avoid DEVICE_NAME length issues
-    mlayer0: bml0 {
-        compatible = "zmk,behavior-momentary-layer";
-        label = "BML0";  // short label
-        binding = <&kp KC_FN1>;  // example key
+/ {
+    // --- BEHAVIORS (Your provided definitions) ---
+    // These only need to be defined if you use them on a layer.
+    behaviors {
+        mlayer0: bml0 {
+            compatible = "zmk,behavior-momentary-layer";
+            label = "BML0";
+            binding = <&kp KC_FN1>;
+        };
+
+        toggle0: btl0 {
+            compatible = "zmk,behavior-toggle-layer";
+            label = "BTL0";
+            binding = <&kp KC_FN2>;
+        };
+
+        to_layer0: btlr0 {
+            compatible = "zmk,behavior-to-layer";
+            label = "BTLR0";
+            binding = <&kp KC_FN3>;
+        };
+
+        repeat0: br0 {
+            compatible = "zmk,behavior-key-repeat";
+            label = "BR0";
+            binding = <&kp KC_A>;
+        };
+
+        transparent0: btr0 {
+            compatible = "zmk,behavior-transparent";
+            label = "BTR0";
+            binding = <&kp KC_TRNS>;
+        };
+
+        none0: bn0 {
+            compatible = "zmk,behavior-none";
+            label = "BN0";
+            binding = <&kp KC_NO>;
+        };
     };
 
-    toggle0: btl0 {
-        compatible = "zmk,behavior-toggle-layer";
-        label = "BTL0";
-        binding = <&kp KC_FN2>;
-    };
+    // --- KEYMAP LAYERS (Mandatory) ---
+    keymap {
+        compatible = "zmk,keymap";
 
-    to_layer0: btlr0 {
-        compatible = "zmk,behavior-to-layer";
-        label = "BTLR0";
-        binding = <&kp KC_FN3>;
-    };
+        default_layer {
+            bindings = <
+                // R0, C0  R1, C0  R2, C0
+                &kp A     &kp B     &kp C
+            >;
+        };
 
-    repeat0: br0 {
-        compatible = "zmk,behavior-key-repeat";
-        label = "BR0";
-        binding = <&kp KC_A>;
-    };
-
-    transparent0: btr0 {
-        compatible = "zmk,behavior-transparent";
-        label = "BTR0";
-        binding = <&kp KC_TRNS>;
-    };
-
-    none0: bn0 {
-        compatible = "zmk,behavior-none";
-        label = "BN0";
-        binding = <&kp KC_NO>;
+        // You can add more layers here if needed
+        // layer_1 {
+        //     bindings = <
+        //         &mo 1 &mo 1 &mo 1
+        //     >;
+        // };
     };
 };
