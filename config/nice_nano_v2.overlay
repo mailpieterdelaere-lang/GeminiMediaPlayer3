@@ -9,11 +9,10 @@
     kscan_0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
-        
-        row-gpios = <&gpio0 3 0>,
-                    <&gpio0 4 0>;
-        col-gpios = <&gpio0 5 0>,
-                    <&gpio0 28 0>;
+
+        // Define GPIOs for your 3-key board
+        row-gpios = <&gpio0 3 0>;  // One row only (P0.03)
+        col-gpios = <&gpio0 4 0>, <&gpio0 5 0>, <&gpio0 28 0>; // Three columns
 
         row-pull-ups;
         col-pull-downs;
@@ -21,12 +20,10 @@
 
     matrix_transform_0: matrix_transform_0 {
         compatible = "zmk,matrix-transform";
-        rows = <2>;
-        columns = <2>;
-
-        // The "map" must be raw numbers, not macros or angled brackets.
-        // For a 2x2 matrix, define 4 entries in row-major order:
-        map = <0 1 2 3>;
+        rows = <1>;
+        columns = <3>;
+        // Each pair corresponds to a key position: (row, column)
+        map = <ZMK_MATRIX_TRANSFORM(0 0 0 1 0 2)>;
     };
 
     &led_strip {
