@@ -31,39 +31,35 @@ jobs:
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
           CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
+          OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
           
-          # 1. Initialize and Update West Workspace (Your Original, Working Logic)
-          echo "--- 1. Setting up West Workspace ---"
+          # 1. Initialize and Update West Workspace (Working Logic)
+          # ... (rest of setup steps 1 and 2 remain the same: git clone, west init, west update, copy files)
+          
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
-          
-          # FIX: Your original west init command that successfully sets up the Zephyr environment
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
-          
           cd "$ZMK_ROOT" || exit 1
           west update || exit 1
-          
-          # 2. Prepare Application Source and Copy Config
-          echo "--- 2. Preparing Application Source and Configuration ---"
           mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
-          
-          # Copy custom files
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" || exit 1
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" || exit 1
           
-          # 3. Source Zephyr Environment (Your Original Working Logic)
-          echo "--- 3. Sourcing Zephyr Environment Variables ---"
+          # 2. Source Zephyr Environment
+          echo "--- 2. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
 
+          # 🚨 CRITICAL DEBUGGING STEP: Dump Overlay Contents 🚨
+          echo "--- 3. DUMPING $BOARD_NAME.overlay CONTENTS (Line 30 is the error) ---"
+          cat -n "$OVERLAY_PATH"
+          echo "----------------------------------------------------------------------"
+          
           # 4. Perform West Build and Capture Status
           echo "--- 4. Starting Final West Build ---"
-          
-          # Run build, capture exit status, but DO NOT exit the step yet (for logging)
           west build -b $BOARD_NAME "$ZMK_ROOT/app"
           BUILD_STATUS=$?
           
-          # Pass build status to be used by subsequent steps
           echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
           
           if [ $BUILD_STATUS -ne 0 ]; then
