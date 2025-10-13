@@ -49,11 +49,10 @@
         rows = <2>; // Match your row count
         columns = <2>; // Match your column count
         
-        // CRITICAL FIX: Change single brackets (<...>) to double brackets (<<...>>)
-        // This is required for the ZMK_MATRIX_TRANSFORM macro's expanded output.
+        // CRITICAL FIX: Remove parentheses around the individual pairs.
         map = <<ZMK_MATRIX_TRANSFORM(
-            (0,0), (0,1),
-            (1,0), (1,1)
+            0,0, 0,1,
+            1,0, 1,1
         )>>;
     };
 
