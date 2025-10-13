@@ -19,18 +19,19 @@ jobs:
       - name: ⬇️ Checkout Repository (Your Config)
         uses: actions/checkout@v4
         with:
-          # Fetches all history to support west
           fetch-depth: 0
           
       - name: ⚙️ West Setup and Direct File Configuration
         id: west_setup
         shell: bash
+        # Run everything from the default workspace root
         run: |
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
-          ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
+          # Define the paths relative to the current workspace root
+          ZMK_CLONE_DIR="./app_clone"
+          ZMK_ROOT="./zmk_workspace"
+          CUSTOM_CONFIG_DIR="./config"
           BOARD_NAME="nice_nano_v2"
           
           # 1. Initialize and Update West Workspace
@@ -38,51 +39,48 @@ jobs:
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
-          cd "$ZMK_ROOT"
+          
+          # Change to the ZMK root directory for subsequent west commands
+          cd "$ZMK_ROOT" || exit 1
           west update || exit 1
           
           # 2. Prepare Application Source
           echo "--- 2. Preparing Application Source and Configuration ---"
-          mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
+          mkdir -p "app"
+          cp -r "$ZMK_CLONE_DIR/app/"* "app" || exit 1
           
           # 3. Copy/Patch Files DIRECTLY to Application Root
           echo "--- 3. Copying Files to App Root for Direct Discovery ---"
-          
-          # Use your current config folder contents for keymap and overlay
-          cp -r "$CUSTOM_CONFIG_DIR"/* "$ZMK_ROOT/app/"
+          # Copy all custom config files from the checked-out folder into the new app folder
+          cp -r "$CUSTOM_CONFIG_DIR"/* "app/"
           
           # 4. Source Zephyr Environment
           echo "--- 4. Sourcing Zephyr Environment Variables ---"
-          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          . "./zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
           
-        # Ensure the next step starts in the ZMK_ROOT directory
+        # Set the working directory for the *next* steps to where ZMK was initialized
         working-directory: ${{ github.workspace }}/zmk_workspace
 
       - name: 5. Perform West Build
         id: build_app
         shell: bash
-        # This step is now only responsible for running the build command
+        # Run the build command
         run: |
           echo "--- 5. Starting Final West Build ---"
           west build -b nice_nano_v2 app
-        # Ensure the build status is captured
-        continue-on-error: true # Allow the workflow to continue to the logging step if the build fails
+        continue-on-error: true # Allow flow to continue to the logging step if the build fails
 
-      # CRITICAL DEBUGGING LOG UPLOAD FIX
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        # CRITICAL FIX: This conditional check runs ONLY if the preceding step failed.
         if: ${{ failure() }}
         with:
           name: devicetree-debug-logs
-          # Path to the critical preprocessed file
+          # FIX: This path is now relative to the working-directory of the build step
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
           retention-days: 1
 
       - name: ⬆️ Upload Final Artifacts
         uses: actions/upload-artifact@v4
-        # Only upload the UF2 file if the build succeeded
         if: ${{ success() }}
         with:
           name: zmk-firmware
