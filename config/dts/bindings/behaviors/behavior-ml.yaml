@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT
+description: Momentary Layer behavior
+compatible: "zmk,b-ml"
+
+include: one_param.yaml
+
+properties:
+  label:
+    type: string
+    required: true
+    description: Human-readable label
