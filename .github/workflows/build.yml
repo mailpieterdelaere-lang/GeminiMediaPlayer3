@@ -21,7 +21,24 @@ jobs:
         with:
           fetch-depth: 0
           
-      - name: 🚀 Setup, Build, and Log Capture
+      - name: 🧩 Log ZMK & Zephyr Versions
+        shell: bash
+        run: |
+          set -e
+          echo "=== ZMK & Zephyr Version Info ==="
+          # Log repo commit for main repo
+          echo "--- Repository HEAD ---"
+          git rev-parse HEAD
+          git branch --show-current
+          # If submodules exist, log their commits
+          git submodule foreach 'echo $path `git rev-parse HEAD`'
+          echo "--- Pinned West Manifest ---"
+          if command -v west &> /dev/null; then
+            west manifest --freeze || echo "❌ west manifest failed"
+          fi
+          echo "=============================="
+
+      - name: 🚀 Setup, Build, and Extensive Logging
         id: build_run
         shell: bash
         run: |
@@ -33,47 +50,55 @@ jobs:
           CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
-
-          echo "🔧 Setting up workspace..."
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
-
+          LOG_FILE="$GITHUB_WORKSPACE/build_debug.log"
+          
+          echo "🔧 Setting up workspace..." | tee -a $LOG_FILE
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" | tee -a $LOG_FILE
           mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" | tee -a $LOG_FILE
+          
           cd "$ZMK_ROOT"
-          west update
-
-          # --- Copy app files ---
+          west update | tee -a $LOG_FILE
+          
+          # Copy app files
           mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
-          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
-          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
-
-          echo "--- DUMPING $BOARD_NAME.overlay ---"
-          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          echo "----------------------------------"
-
-          echo "🌿 Sourcing Zephyr environment..."
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" | tee -a $LOG_FILE
+          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" | tee -a $LOG_FILE
+          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" | tee -a $LOG_FILE
+          
+          echo "--- DUMPING $BOARD_NAME.overlay ---" | tee -a $LOG_FILE
+          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay" | tee -a $LOG_FILE
+          echo "----------------------------------" | tee -a $LOG_FILE
+          
+          echo "🌿 Sourcing Zephyr environment..." | tee -a $LOG_FILE
           . "$ZMK_ROOT/zephyr/zephyr-env.sh"
-
-          echo "⚙️ Starting west build..."
-          if west build -b $BOARD_NAME "$ZMK_ROOT/app"; then
+          
+          echo "⚙️ Starting west build..." | tee -a $LOG_FILE
+          if west build -b $BOARD_NAME "$ZMK_ROOT/app" 2>&1 | tee -a $LOG_FILE; then
             echo "BUILD_STATUS=0" >> $GITHUB_ENV
-            echo "✅ Build completed successfully!"
+            echo "✅ Build completed successfully!" | tee -a $LOG_FILE
           else
             echo "BUILD_STATUS=1" >> $GITHUB_ENV
-            echo "❌ Build failed!"
+            echo "❌ Build failed!" | tee -a $LOG_FILE
           fi
-
-          echo "--- Build status set to $BUILD_STATUS ---"
-
+          echo "--- Build status set to $BUILD_STATUS ---" | tee -a $LOG_FILE
+          
           if [ "$BUILD_STATUS" -ne 0 ]; then
-            echo "Dumping zephyr.dts if available..."
+            echo "Dumping zephyr.dts if available..." | tee -a $LOG_FILE
             if [ -f "$DTS_PATH" ]; then
-              cat -n "$DTS_PATH"
+              cat -n "$DTS_PATH" | tee -a $LOG_FILE
             else
-              echo "zephyr.dts not found — build likely failed early."
+              echo "zephyr.dts not found — build likely failed early." | tee -a $LOG_FILE
             fi
           fi
+
+      - name: 💾 Upload Build Debug Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-debug-logs
+          path: ${{ github.workspace }}/build_debug.log
+          retention-days: 2
 
       - name: 💾 Upload Devicetree Debug Logs (on failure)
         if: env.BUILD_STATUS == '1'
