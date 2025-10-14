@@ -51,13 +51,21 @@ jobs:
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
 
-      - name: 📝 Dump Overlay Contents
-        shell: bash
-        run: |
+          - name: 📝 Dump Overlay Contents
+          shell: bash
+          run: |
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          BOARD_NAME="nice_nano_v2"
           OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
+
+          if [ -f "$OVERLAY_PATH" ]; then
           echo "--- $BOARD_NAME.overlay ---"
           cat -n "$OVERLAY_PATH"
           echo "----------------------------------"
+          else
+          echo "❌ Overlay file not found: $OVERLAY_PATH"
+          exit 1
+          fi
 
       - name: 🔍 Validate Devicetree
         shell: bash
