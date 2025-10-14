@@ -14,13 +14,13 @@ jobs:
       image: zmkfirmware/zmk-build-arm:stable
     permissions:
       contents: read
-      
+
     steps:
-      - name: ⬇️ Checkout Repository (Your Config)
+      - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - name: 🚀 West Setup, Build, and Log Capture
         id: build_run
         shell: bash
@@ -33,6 +33,7 @@ jobs:
           BOARD_NAME="nice_nano_v2"
           OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
+          DTS_PRE_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts.pre"
 
           # --- 1. Initialize and Update West Workspace ---
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
@@ -44,7 +45,7 @@ jobs:
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" || exit 1
           cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" || exit 1
-          
+
           # --- 2. Source Zephyr Environment ---
           echo "--- 2. Sourcing Zephyr Environment Variables ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
@@ -53,44 +54,53 @@ jobs:
           echo "--- 3. DUMPING $BOARD_NAME.overlay CONTENTS ---"
           cat -n "$OVERLAY_PATH"
           echo "----------------------------------------------------------------------"
-          
-          # --- 4. Start West Build ---
-          echo "--- 4. Starting Final West Build ---"
+
+          # --- 4. Devicetree Validation ---
+          echo "--- 4. VALIDATING DEVICETREE ---"
+          mkdir -p "$ZMK_ROOT/build/zephyr"
+          if dtc -I dts -O dtb -o /dev/null "$OVERLAY_PATH"; then
+            echo "✅ Overlay compiled successfully with dtc."
+          else
+            echo "❌ Overlay failed devicetree compilation with dtc."
+          fi
+
+          # Optional: dump preprocessor output for debugging
+          dtc -I dts -O dts -o "$DTS_PRE_PATH" "$OVERLAY_PATH" || echo "(preprocessor dump failed)"
+
+          # --- 5. Start West Build ---
+          echo "--- 5. Starting Final West Build ---"
           west build -b $BOARD_NAME "$ZMK_ROOT/app"
           BUILD_STATUS=$?
-          
+
           echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
-          
-          # --- 5. Dump zephyr.dts for Debugging (Only if Build Fails) ---
+
+          # --- 6. Dump zephyr.dts for Debugging (Only if Build Fails) ---
           if [ $BUILD_STATUS -ne 0 ]; then
-             echo "----------------------------------------------------------------------"
-             echo "❌ WEST BUILD FAILED. Dumping zephyr.dts for debugging..."
-             if [ -f "$DTS_PATH" ]; then
-                 echo "--- BEGIN zephyr.dts ---"
-                 cat -n "$DTS_PATH" || echo "(cat failed — file unreadable)"
-                 echo "--- END zephyr.dts ---"
-             else
-                 echo "zephyr.dts not found — build likely failed before DTS generation."
-             fi
-             echo "----------------------------------------------------------------------"
+            echo "----------------------------------------------------------------------"
+            echo "❌ WEST BUILD FAILED. Dumping zephyr.dts for debugging..."
+            if [ -f "$DTS_PATH" ]; then
+              echo "--- BEGIN zephyr.dts ---"
+              cat -n "$DTS_PATH" || echo "(cat failed — file unreadable)"
+              echo "--- END zephyr.dts ---"
+            else
+              echo "zephyr.dts not found — build likely failed before DTS generation."
+            fi
+            echo "----------------------------------------------------------------------"
           fi
-          
+
           exit $BUILD_STATUS
-          
+
       # 💾 Upload Devicetree Preprocessor Logs (On Failure)
       - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
         uses: actions/upload-artifact@v4
-        # CRITICAL FIX: Executes only if the build step failed (BUILD_STATUS != 0)
         if: ${{ steps.build_run.outputs.BUILD_STATUS != '0' }}
         with:
           name: devicetree-debug-logs
-          # Use the path defined by your original working logic
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
           retention-days: 1
 
       - name: ⬆️ Upload Final Artifacts
         uses: actions/upload-artifact@v4
-        # Only upload the UF2 file if the build succeeded (BUILD_STATUS == 0)
         if: ${{ steps.build_run.outputs.BUILD_STATUS == '0' }}
         with:
           name: zmk-firmware
