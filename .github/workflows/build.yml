@@ -12,77 +12,82 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
+      
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 🛠 Install Devicetree Compiler & Dependencies
+      - name: ⚙️ Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y device-tree-compiler git python3-pip ninja-build cmake
+          sudo apt-get install -y git cmake ninja-build dtc python3 python3-pip
 
-      - name: 🚀 West Setup
+      - name: 🐍 Install West and Zephyr Python Packages
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install west
+
+      - name: 🚀 Setup ZMK Workspace
         shell: bash
         run: |
+          set -e
+
+          # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
+          CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
+          OVERLAY_SRC="$CONFIG_DIR/$BOARD_NAME.overlay"
+          KEYMAP_SRC="$CONFIG_DIR/$BOARD_NAME.keymap"
+          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
+          DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
 
-          # Clone ZMK and initialize workspace
+          # --- Clone ZMK ---
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
-          mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
-          cd "$ZMK_ROOT"
-          west update
-          mkdir -p "$ZMK_ROOT/app"
 
-          # Copy app files, overlay, and keymap
+          # --- Init West Workspace ---
+          mkdir -p "$ZMK_ROOT"
+          cd "$ZMK_ROOT"
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml
+          west update
+
+          # --- Copy app/ files ---
+          mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
+          cp "$OVERLAY_SRC" "$OVERLAY_DEST"
+          cp "$KEYMAP_SRC" "$KEYMAP_DEST"
+
+      - name: 🌿 Source Zephyr Environment
+        shell: bash
+        run: |
+          . "$ZMK_ROOT/zephyr/zephyr-env.sh"
 
       - name: 📝 Dump Overlay Contents
         shell: bash
         run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          BOARD_NAME="nice_nano_v2"
-          OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-
-          if [ -f "$OVERLAY_PATH" ]; then
-            echo "--- $BOARD_NAME.overlay ---"
-            cat -n "$OVERLAY_PATH"
-            echo "----------------------------------"
-          else
-            echo "❌ Overlay file not found: $OVERLAY_PATH"
-            exit 1
-          fi
-
-      - name: ⚡ Source Zephyr Environment
-        shell: bash
-        run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          source "$ZMK_ROOT/zephyr/zephyr-env.sh"
+          echo "--- DUMPING $BOARD_NAME.overlay ---"
+          cat -n "$OVERLAY_DEST"
+          echo "-----------------------------------"
 
       - name: 🔍 Validate Devicetree
         shell: bash
         run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          BOARD_NAME="nice_nano_v2"
-          OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          DTS_TMP="$ZMK_ROOT/build/zephyr/zephyr.dts.tmp"
+          echo "--- VALIDATING DEVICETREE ---"
+          dtc -I dts -O dtb -o /tmp/test.dtb "$OVERLAY_DEST" && echo "✅ Devicetree overlay valid." || echo "❌ Devicetree overlay invalid."
 
-          mkdir -p "$ZMK_ROOT/build/zephyr"
-          dtc -I dts -O dtb "$OVERLAY_PATH" -o "$DTS_TMP" && echo "✅ Overlay devicetree valid." || echo "❌ Overlay devicetree compilation failed."
-
-      - name: 🚧 Build ZMK Firmware
+      - name: ⚡ Build ZMK Firmware
         shell: bash
         run: |
-          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          BOARD_NAME="nice_nano_v2"
-          cd "$ZMK_ROOT"
-          west build -b "$BOARD_NAME" app
+          set -e
+          cd "$ZMK_ROOT/app"
+          west build -b $BOARD_NAME .
+
+      - name: ⬆️ Upload Final Firmware Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
