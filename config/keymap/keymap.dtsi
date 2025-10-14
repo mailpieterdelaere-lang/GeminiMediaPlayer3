@@ -1,0 +1,60 @@
+#include <behaviors.dtsi>
+#include <keys.dtsi>
+
+/ {
+    behaviors {
+        mlayer0: bml0 {
+            compatible = "zmk,behavior-momentary-layer";
+            label = "BML0";
+            #binding-cells = <1>;
+        };
+
+        toggle0: btl0 {
+            compatible = "zmk,behavior-toggle-layer";
+            label = "BTL0";
+            #binding-cells = <1>;
+        };
+
+        to_layer0: btlr0 {
+            compatible = "zmk,behavior-to-layer";
+            label = "BTLR0";
+            #binding-cells = <1>;
+        };
+
+        repeat0: br0 {
+            compatible = "zmk,behavior-key-repeat";
+            label = "BR0";
+            #binding-cells = <0>;
+        };
+
+        transparent0: btr0 {
+            compatible = "zmk,behavior-transparent";
+            label = "BTR0";
+            #binding-cells = <0>;
+        };
+
+        none0: bn0 {
+            compatible = "zmk,behavior-none";
+            label = "BN0";
+            #binding-cells = <0>;
+        };
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                // R0C0   R1C0   R2C0
+                &kp A     &mlayer0 1     &kp B
+            >;
+        };
+
+        layer_1 {
+            bindings = <
+                // R0C0   R1C0   R2C0
+                &kp C     &kp D     &kp E
+            >;
+        };
+    };
+};
