@@ -1,4 +1,4 @@
-name: ZMK Build:Direct Configuration (main)
+name: ZMK Build (Stable Direct Config)
 
 on:
   push:
@@ -16,93 +16,76 @@ jobs:
       contents: read
       
     steps:
-      - name: ⬇️ Checkout Repository (Your Config)
+      - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           
-      - name: 🚀 West Setup, Build, and Log Capture
+      - name: 🚀 Setup, Build, and Log Capture
         id: build_run
         shell: bash
         run: |
+          set -e
           # --- Configuration Variables ---
-          ZMK_REVISION="main"
+          ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
+          CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
-          OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
 
-          echo "--- BUILD CONFIGURATION ---"
-          echo "ZMK_REVISION: $ZMK_REVISION"
-          echo "BOARD_NAME:   $BOARD_NAME"
-          echo "------------------------------------"
+          echo "🔧 Setting up workspace..."
+          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
 
-          # --- 1. Verify Custom Config Exists ---
-          if [ ! -f "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" ] || [ ! -f "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" ]; then
-            echo "❌ Missing keymap or overlay in config directory:"
-            echo "Expected:"
-            echo "  $CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap"
-            echo "  $CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
-            exit 1
-          fi
-          
-          # --- 2. Initialize and Update West Workspace ---
-          git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" || exit 1
           mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" || exit 1
-          cd "$ZMK_ROOT" || exit 1
-          west update || exit 1
-          mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" || exit 1
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" || exit 1
-          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" || exit 1
-          
-          # --- 3. Source Zephyr Environment ---
-          echo "--- 3. Sourcing Zephyr Environment Variables ---"
-          . "$ZMK_ROOT/zephyr/zephyr-env.sh" || { echo "FATAL: zephyr-env.sh sourcing failed."; exit 1; }
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
+          cd "$ZMK_ROOT"
+          west update
 
-          # --- 4. Dump Overlay Contents ---
-          echo "--- 4. DUMPING $BOARD_NAME.overlay CONTENTS ---"
-          cat -n "$OVERLAY_PATH"
-          echo "----------------------------------------------------------------------"
-          
-          # --- 5. Start West Build ---
-          echo "--- 5. Starting Final West Build ---"
-          west build -b $BOARD_NAME "$ZMK_ROOT/app"
-          BUILD_STATUS=$?
-          
-          echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
-          
-          # --- 6. Dump zephyr.dts for Debugging (Only if Build Fails) ---
-          if [ $BUILD_STATUS -ne 0 ]; then
-             echo "----------------------------------------------------------------------"
-             echo "❌ WEST BUILD FAILED. Dumping zephyr.dts for debugging..."
-             if [ -f "$DTS_PATH" ]; then
-                 echo "--- BEGIN zephyr.dts ---"
-                 cat -n "$DTS_PATH" || echo "(cat failed — file unreadable)"
-                 echo "--- END zephyr.dts ---"
-             else
-                 echo "zephyr.dts not found — build likely failed before DTS generation."
-             fi
-             echo "----------------------------------------------------------------------"
+          # --- Copy app files ---
+          mkdir -p "$ZMK_ROOT/app"
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
+          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
+          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+
+          echo "--- DUMPING $BOARD_NAME.overlay ---"
+          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          echo "----------------------------------"
+
+          echo "🌿 Sourcing Zephyr environment..."
+          . "$ZMK_ROOT/zephyr/zephyr-env.sh"
+
+          echo "⚙️ Starting west build..."
+          if west build -b $BOARD_NAME "$ZMK_ROOT/app"; then
+            echo "BUILD_STATUS=0" >> $GITHUB_ENV
+            echo "✅ Build completed successfully!"
+          else
+            echo "BUILD_STATUS=1" >> $GITHUB_ENV
+            echo "❌ Build failed!"
           fi
-          
-          exit $BUILD_STATUS
-          
-      # 💾 Upload Devicetree Preprocessor Logs (On Failure)
-      - name: 💾 Upload Devicetree Preprocessor Logs (On Failure)
+
+          echo "--- Build status set to $BUILD_STATUS ---"
+
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo "Dumping zephyr.dts if available..."
+            if [ -f "$DTS_PATH" ]; then
+              cat -n "$DTS_PATH"
+            else
+              echo "zephyr.dts not found — build likely failed early."
+            fi
+          fi
+
+      - name: 💾 Upload Devicetree Debug Logs (on failure)
+        if: env.BUILD_STATUS == '1'
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_run.outputs.BUILD_STATUS != '0' }}
         with:
           name: devicetree-debug-logs
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
-          retention-days: 1
+          retention-days: 2
 
-      - name: ⬆️ Upload Final Artifacts
+      - name: ⬆️ Upload Firmware (on success)
+        if: env.BUILD_STATUS == '0'
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_run.outputs.BUILD_STATUS == '0' }}
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
