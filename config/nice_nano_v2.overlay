@@ -10,13 +10,10 @@
         compatible = "zmk,kscan-gpio-matrix";
         label = "KSCAN_0";
 
-        row-gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
-        col-gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>,
-                     <&gpio0 5 GPIO_ACTIVE_HIGH>,
-                     <&gpio0 28 GPIO_ACTIVE_HIGH>;
-
-        row-pull-ups;
-        col-pull-downs;
+        row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
+        col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
+                    <&gpio0 5 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
+                    <&gpio0 28 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
     };
 
     matrix_transform0: matrix_transform_0 {
