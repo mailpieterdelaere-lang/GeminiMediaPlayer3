@@ -21,8 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🚀 West Setup, Build, and Log Capture
-        id: build_run
+      - name: 🚀 Setup ZMK Workspace and Build
         shell: bash
         run: |
           set -euo pipefail
@@ -33,46 +32,38 @@ jobs:
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
           CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
-          OVERLAY_PATH="$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay"
-          KEYMAP_PATH="$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
 
-          echo "--- 1. Cloning ZMK Workspace ---"
+          echo "--- Cloning ZMK ---"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
+
+          echo "--- Initializing west workspace ---"
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
           cd "$ZMK_ROOT"
           west update
 
-          # Copy overlay only; keymap will be referenced in-place
+          echo "--- Copying full app folder ---"
           mkdir -p "$ZMK_ROOT/app"
-          cp "$OVERLAY_PATH" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
 
-          # --- 2. Verify Keymap Exists ---
-          if [ ! -f "$KEYMAP_PATH" ]; then
-              echo "❌ Keymap not found at $KEYMAP_PATH"
-              exit 1
-          fi
-          echo "--- USING KEYMAP ---"
-          cat -n "$KEYMAP_PATH"
-          echo "-------------------"
+          echo "--- Copying overlay and keymap ---"
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
 
-          # --- 3. Source Zephyr Environment ---
-          echo "--- 3. Sourcing Zephyr Environment Variables ---"
+          echo "--- Sourcing Zephyr Environment ---"
           . "$ZMK_ROOT/zephyr/zephyr-env.sh"
 
-          # --- 4. Validate Devicetree ---
-          echo "--- 4. VALIDATING DEVICETREE ---"
-          dtc_path=$(command -v dtc || true)
-          if [ -z "$dtc_path" ]; then
-              echo "❌ dtc (Device Tree Compiler) not found; devicetree validation skipped."
+          echo "--- Validating Devicetree ---"
+          DTC_CMD="/opt/zephyr-sdk-0.16.9/sysroots/x86_64-pokysdk-linux/usr/bin/dtc"
+          if [ ! -x "$DTC_CMD" ]; then
+              echo "❌ dtc not found at $DTC_CMD, skipping devicetree validation"
           else
-              dtc -I dts -O dtb -o /dev/null "$ZMK_ROOT/app/$BOARD_NAME.overlay" || echo "❌ Overlay devicetree compilation failed"
-              echo "✅ Devicetree overlay syntax appears valid"
+              "$DTC_CMD" -I dts -O dtb -o /dev/null "$ZMK_ROOT/app/$BOARD_NAME.overlay" || echo "❌ Overlay devicetree compilation failed"
+              echo "✅ Overlay syntax validated"
           fi
 
-          # --- 5. Start West Build ---
-          echo "--- 5. Starting Final West Build ---"
+          echo "--- Starting west build ---"
           set +e
           west build -b $BOARD_NAME "$ZMK_ROOT/app"
           BUILD_STATUS=$?
@@ -80,18 +71,13 @@ jobs:
 
           echo "BUILD_STATUS=$BUILD_STATUS" >> $GITHUB_OUTPUT
 
-          # --- 6. Dump zephyr.dts if build failed ---
           if [ $BUILD_STATUS -ne 0 ]; then
-              echo "----------------------------------------------------------------------"
-              echo "❌ WEST BUILD FAILED. Dumping zephyr.dts for debugging..."
+              echo "❌ WEST BUILD FAILED. Dumping zephyr.dts..."
               if [ -f "$DTS_PATH" ]; then
-                  echo "--- BEGIN zephyr.dts ---"
-                  cat -n "$DTS_PATH" || echo "(cat failed — file unreadable)"
-                  echo "--- END zephyr.dts ---"
+                  cat -n "$DTS_PATH"
               else
-                  echo "zephyr.dts not found — build likely failed before DTS generation."
+                  echo "zephyr.dts not found — build failed before DTS generation"
               fi
-              echo "----------------------------------------------------------------------"
           fi
 
           exit $BUILD_STATUS
