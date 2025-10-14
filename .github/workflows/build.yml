@@ -21,77 +21,72 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🛠 Install Device Tree Compiler
+      - name: 🛠 Install dtc for Devicetree Validation
         run: |
           apt-get update
           apt-get install -y device-tree-compiler
 
-      - name: 🚀 West Setup, Copy Overlay & Keymap
+      - name: 🚀 Setup ZMK Workspace
         shell: bash
         run: |
           set -e
-
-          # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
-          CONFIG_DIR="$GITHUB_WORKSPACE/config"
+          CUSTOM_CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
-          OVERLAY_FILE="$CONFIG_DIR/$BOARD_NAME.overlay"
-          KEYMAP_FILE="$CONFIG_DIR/$BOARD_NAME.keymap"
-          DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
 
-          # --- 1. Clone and Init West Workspace ---
+          # Clone ZMK
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
+
+          # Initialize west workspace
           mkdir -p "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
+          west init -m "$ZMK_CLONE_DIR" --mf app/west.yml "$ZMK_ROOT"
           cd "$ZMK_ROOT"
           west update
 
-          # --- 2. Copy app files, overlay, and keymap ---
+          # Copy app and configuration files
           mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
-          cp "$OVERLAY_FILE" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          cp "$KEYMAP_FILE" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          cp "$CUSTOM_CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
 
-      - name: 📝 Source Zephyr Environment
+      - name: 📝 Dump Overlay Contents
         shell: bash
         run: |
-          . "$ZMK_ROOT/zephyr/zephyr-env.sh"
+          OVERLAY_PATH="$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          echo "--- $BOARD_NAME.overlay ---"
+          cat -n "$OVERLAY_PATH"
+          echo "----------------------------------"
 
-      - name: 📄 Dump Overlay Contents
+      - name: 🔍 Validate Devicetree
         shell: bash
         run: |
-          echo "--- DUMPING $BOARD_NAME.overlay ---"
-          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          echo "-------------------------------------"
+          DTS_OVERLAY="$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          TEMP_DTS="$ZMK_ROOT/build/zephyr/temp_overlay.dts"
+          mkdir -p "$(dirname "$TEMP_DTS")"
 
-      - name: 🛠 Validate Devicetree
-        shell: bash
-        run: |
-          echo "--- VALIDATING DEVICETREE ---"
-          dtc -I dts -O dtb -o /tmp/validate.dtb "$ZMK_ROOT/app/$BOARD_NAME.overlay" && echo "✅ Devicetree valid" || echo "❌ Devicetree compilation failed"
+          # Preprocess overlay for validation
+          dtc -I dts -O dts -o "$TEMP_DTS" "$DTS_OVERLAY" || echo "❌ Overlay failed devicetree compilation"
 
-      - name: 🚧 Build ZMK Firmware
+      - name: 🚀 Build ZMK Firmware
         shell: bash
         id: build_run
         run: |
           set -e
-          west build -b $BOARD_NAME "$ZMK_ROOT/app"
-          echo "BUILD_STATUS=0" >> $GITHUB_OUTPUT
-        continue-on-error: true
+          ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
+          BOARD_NAME="nice_nano_v2"
+          west build -b "$BOARD_NAME" "$ZMK_ROOT/app"
 
-      - name: 💾 Upload Devicetree Logs (On Failure)
+      - name: 💾 Upload Build Artifacts
         uses: actions/upload-artifact@v4
-        if: ${{ steps.build_run.outcome != 'success' }}
-        with:
-          name: devicetree-debug-logs
-          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
-          retention-days: 1
-
-      - name: ⬆️ Upload UF2 Firmware (On Success)
-        uses: actions/upload-artifact@v4
-        if: ${{ steps.build_run.outcome == 'success' }}
         with:
           name: zmk-firmware
           path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+
+      - name: 💾 Upload Devicetree Logs (Optional)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devicetree-debug-logs
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/temp_overlay.dts
