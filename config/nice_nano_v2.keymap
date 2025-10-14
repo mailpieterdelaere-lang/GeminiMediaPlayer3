@@ -2,62 +2,59 @@
 #include <keys.dtsi>
 
 / {
-    // --- BEHAVIORS (Your provided definitions) ---
-    // These only need to be defined if you use them on a layer.
     behaviors {
         mlayer0: bml0 {
             compatible = "zmk,behavior-momentary-layer";
             label = "BML0";
-            binding = <&kp KC_FN1>;
+            #binding-cells = <1>;
         };
 
         toggle0: btl0 {
             compatible = "zmk,behavior-toggle-layer";
             label = "BTL0";
-            binding = <&kp KC_FN2>;
+            #binding-cells = <1>;
         };
 
         to_layer0: btlr0 {
             compatible = "zmk,behavior-to-layer";
             label = "BTLR0";
-            binding = <&kp KC_FN3>;
+            #binding-cells = <1>;
         };
 
         repeat0: br0 {
             compatible = "zmk,behavior-key-repeat";
             label = "BR0";
-            binding = <&kp KC_A>;
+            #binding-cells = <0>;
         };
 
         transparent0: btr0 {
             compatible = "zmk,behavior-transparent";
             label = "BTR0";
-            binding = <&kp KC_TRNS>;
+            #binding-cells = <0>;
         };
 
         none0: bn0 {
             compatible = "zmk,behavior-none";
             label = "BN0";
-            binding = <&kp KC_NO>;
+            #binding-cells = <0>;
         };
     };
 
-    // --- KEYMAP LAYERS (Mandatory) ---
     keymap {
         compatible = "zmk,keymap";
 
         default_layer {
             bindings = <
-                // R0, C0  R1, C0  R2, C0
-                &kp A     &kp B     &kp C
+                // R0C0   R1C0   R2C0
+                &kp A     &mlayer0 1     &kp B
             >;
         };
 
-        // You can add more layers here if needed
-        // layer_1 {
-        //     bindings = <
-        //         &mo 1 &mo 1 &mo 1
-        //     >;
-        // };
+        layer_1 {
+            bindings = <
+                // R0C0   R1C0   R2C0
+                &kp C     &kp D     &kp E
+            >;
+        };
     };
 };
