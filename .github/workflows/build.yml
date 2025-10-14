@@ -1,8 +1,32 @@
+name: ZMK Build (Stable Direct Config)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
+    permissions:
+      contents: read
+
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: 🚀 Setup, Build, and Log Capture
         id: build_run
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
@@ -10,9 +34,12 @@
           CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
+          BUILD_LOG="$GITHUB_WORKSPACE/build.log"
 
           echo "🔧 Setting up workspace..."
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
+
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
           cd "$ZMK_ROOT"
@@ -24,19 +51,19 @@
           cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
           cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
 
-          # --- Append device name length config ---
-          echo "CONFIG_Z_DEVICE_MAX_NAME_LEN=64" >> "$ZMK_ROOT/app/prj.conf"
-          echo "✅ Increased Z_DEVICE_MAX_NAME_LEN to 64"
-
           echo "--- DUMPING $BOARD_NAME.overlay ---"
           cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay"
           echo "----------------------------------"
+
+          # --- Apply device name length fix ---
+          echo "🛠 Applying Z_DEVICE_MAX_NAME_LEN fix..."
+          export Z_DEVICE_MAX_NAME_LEN=64
 
           echo "🌿 Sourcing Zephyr environment..."
           . "$ZMK_ROOT/zephyr/zephyr-env.sh"
 
           echo "⚙️ Starting west build..."
-          if west build -b $BOARD_NAME "$ZMK_ROOT/app"; then
+          if west build -b "$BOARD_NAME" "$ZMK_ROOT/app" | tee "$BUILD_LOG"; then
             echo "BUILD_STATUS=0" >> $GITHUB_ENV
             echo "✅ Build completed successfully!"
           else
@@ -44,7 +71,8 @@
             echo "❌ Build failed!"
           fi
 
-          echo "--- Build status set to $BUILD_STATUS ---"
+          echo "--- Build status: $BUILD_STATUS ---"
+
           if [ "$BUILD_STATUS" -ne 0 ]; then
             echo "Dumping zephyr.dts if available..."
             if [ -f "$DTS_PATH" ]; then
@@ -53,3 +81,26 @@
               echo "zephyr.dts not found — build likely failed early."
             fi
           fi
+
+      - name: 💾 Upload Devicetree Debug Logs (on failure)
+        if: env.BUILD_STATUS == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: devicetree-debug-logs
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts
+          retention-days: 2
+
+      - name: 💾 Upload Build Log (on failure)
+        if: env.BUILD_STATUS == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ github.workspace }}/build.log
+          retention-days: 2
+
+      - name: ⬆️ Upload Firmware (on success)
+        if: env.BUILD_STATUS == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zmk-firmware
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
