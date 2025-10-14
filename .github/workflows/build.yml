@@ -20,6 +20,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: ⚠️ Fix Git Dubious Ownership
+        shell: bash
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
           
       - name: 🧩 Log ZMK & Zephyr Versions
         shell: bash
