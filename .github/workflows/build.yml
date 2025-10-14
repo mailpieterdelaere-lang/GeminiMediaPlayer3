@@ -10,8 +10,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: zmkfirmware/zmk-build-arm:stable
     permissions:
       contents: read
 
@@ -21,10 +19,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🛠 Install Devicetree Compiler
+      - name: 🛠 Install Devicetree Compiler & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y device-tree-compiler
+          sudo apt-get install -y device-tree-compiler git python3-pip ninja-build cmake
 
       - name: 🚀 West Setup
         shell: bash
