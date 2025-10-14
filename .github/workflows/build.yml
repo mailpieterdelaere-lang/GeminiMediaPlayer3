@@ -1,4 +1,4 @@
-name: ZMK Build:Direct Configuration (Final Debug)
+name: ZMK Build (Stable Direct Config)
 
 on:
   push:
@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:stable
     permissions:
       contents: read
       
@@ -18,75 +20,71 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: ⚙️ Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git cmake ninja-build dtc python3 python3-pip
-
-      - name: 🐍 Install West and Zephyr Python Packages
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install west
-
-      - name: 🚀 Setup ZMK Workspace
+          
+      - name: 🚀 Setup, Build, and Log Capture
+        id: build_run
         shell: bash
         run: |
           set -e
-
           # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
           CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
-          OVERLAY_SRC="$CONFIG_DIR/$BOARD_NAME.overlay"
-          KEYMAP_SRC="$CONFIG_DIR/$BOARD_NAME.keymap"
-          OVERLAY_DEST="$ZMK_ROOT/app/$BOARD_NAME.overlay"
-          KEYMAP_DEST="$ZMK_ROOT/app/$BOARD_NAME.keymap"
           DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
 
-          # --- Clone ZMK ---
+          echo "🔧 Setting up workspace..."
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR"
 
-          # --- Init West Workspace ---
           mkdir -p "$ZMK_ROOT"
+          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT"
           cd "$ZMK_ROOT"
-          west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml
           west update
 
-          # --- Copy app/ files ---
+          # --- Copy app files ---
           mkdir -p "$ZMK_ROOT/app"
           cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
-          cp "$OVERLAY_SRC" "$OVERLAY_DEST"
-          cp "$KEYMAP_SRC" "$KEYMAP_DEST"
+          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap"
+          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay"
 
-      - name: 🌿 Source Zephyr Environment
-        shell: bash
-        run: |
+          echo "--- DUMPING $BOARD_NAME.overlay ---"
+          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay"
+          echo "----------------------------------"
+
+          echo "🌿 Sourcing Zephyr environment..."
           . "$ZMK_ROOT/zephyr/zephyr-env.sh"
 
-      - name: 📝 Dump Overlay Contents
-        shell: bash
-        run: |
-          echo "--- DUMPING $BOARD_NAME.overlay ---"
-          cat -n "$OVERLAY_DEST"
-          echo "-----------------------------------"
+          echo "⚙️ Starting west build..."
+          if west build -b $BOARD_NAME "$ZMK_ROOT/app"; then
+            echo "BUILD_STATUS=0" >> $GITHUB_ENV
+            echo "✅ Build completed successfully!"
+          else
+            echo "BUILD_STATUS=1" >> $GITHUB_ENV
+            echo "❌ Build failed!"
+          fi
 
-      - name: 🔍 Validate Devicetree
-        shell: bash
-        run: |
-          echo "--- VALIDATING DEVICETREE ---"
-          dtc -I dts -O dtb -o /tmp/test.dtb "$OVERLAY_DEST" && echo "✅ Devicetree overlay valid." || echo "❌ Devicetree overlay invalid."
+          echo "--- Build status set to $BUILD_STATUS ---"
 
-      - name: ⚡ Build ZMK Firmware
-        shell: bash
-        run: |
-          set -e
-          cd "$ZMK_ROOT/app"
-          west build -b $BOARD_NAME .
+          if [ "$BUILD_STATUS" -ne 0 ]; then
+            echo "Dumping zephyr.dts if available..."
+            if [ -f "$DTS_PATH" ]; then
+              cat -n "$DTS_PATH"
+            else
+              echo "zephyr.dts not found — build likely failed early."
+            fi
+          fi
 
-      - name: ⬆️ Upload Final Firmware Artifact
+      - name: 💾 Upload Devicetree Debug Logs (on failure)
+        if: env.BUILD_STATUS == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: devicetree-debug-logs
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
+          retention-days: 2
+
+      - name: ⬆️ Upload Firmware (on success)
+        if: env.BUILD_STATUS == '0'
         uses: actions/upload-artifact@v4
         with:
           name: zmk-firmware
