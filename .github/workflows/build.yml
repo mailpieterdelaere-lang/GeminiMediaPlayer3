@@ -1,4 +1,4 @@
-name: ZMK Build (Stable Direct Config)
+name: ZMK Build (Stable Direct Config + Z_DEVICE_MAX_NAME_LEN Fix)
 
 on:
   push:
@@ -14,87 +14,95 @@ jobs:
       image: zmkfirmware/zmk-build-arm:stable
     permissions:
       contents: read
-      
+
     steps:
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: ⚠️ Fix Git Dubious Ownership
+      - name: ⚙️ Fix Git Dubious Ownership
         shell: bash
-        run: |
-          git config --global --add safe.directory $GITHUB_WORKSPACE
-          
+        run: git config --global --add safe.directory $GITHUB_WORKSPACE
+
       - name: 🧩 Log ZMK & Zephyr Versions
         shell: bash
         run: |
           set -e
           echo "=== ZMK & Zephyr Version Info ==="
-          # Log repo commit for main repo
-          echo "--- Repository HEAD ---"
           git rev-parse HEAD
           git branch --show-current
-          # If submodules exist, log their commits
           git submodule foreach 'echo $path `git rev-parse HEAD`'
-          echo "--- Pinned West Manifest ---"
           if command -v west &> /dev/null; then
-            west manifest --freeze || echo "❌ west manifest failed"
+            west manifest --freeze || true
           fi
-          echo "=============================="
-      - name: 🚀 Setup, Build, and Extensive Logging
+
+      - name: 🚀 Setup, Patch, Build, and Log
         id: build_run
         shell: bash
         run: |
           set -e
-          # --- Configuration Variables ---
           ZMK_REVISION="v0.3"
           ZMK_CLONE_DIR="$GITHUB_WORKSPACE/app_clone"
           ZMK_ROOT="$GITHUB_WORKSPACE/zmk_workspace"
           CONFIG_DIR="$GITHUB_WORKSPACE/config"
           BOARD_NAME="nice_nano_v2"
-          DTS_PATH="$ZMK_ROOT/build/zephyr/zephyr.dts"
           LOG_FILE="$GITHUB_WORKSPACE/build_debug.log"
-          
+
           echo "🔧 Setting up workspace..." | tee -a $LOG_FILE
           git clone --branch "$ZMK_REVISION" https://github.com/zmkfirmware/zmk.git "$ZMK_CLONE_DIR" | tee -a $LOG_FILE
           mkdir -p "$ZMK_ROOT"
           west init -m "$ZMK_CLONE_DIR" --mr "$ZMK_REVISION" --mf app/west.yml "$ZMK_ROOT" | tee -a $LOG_FILE
-          
+
           cd "$ZMK_ROOT"
           west update | tee -a $LOG_FILE
-          
-          # Copy app files
+
+          # Apply fix for Z_DEVICE_MAX_NAME_LEN if missing
+          echo "🔧 Applying Z_DEVICE_MAX_NAME_LEN fix..." | tee -a $LOG_FILE
+          FIX_FILE="$ZMK_ROOT/zephyr/include/zephyr/device.h"
+          if ! grep -q "Z_DEVICE_MAX_NAME_LEN" "$FIX_FILE"; then
+            echo "#ifndef Z_DEVICE_MAX_NAME_LEN" >> "$FIX_FILE"
+            echo "#define Z_DEVICE_MAX_NAME_LEN 48" >> "$FIX_FILE"
+            echo "#endif" >> "$FIX_FILE"
+            echo "✅ Added Z_DEVICE_MAX_NAME_LEN fix" | tee -a $LOG_FILE
+          else
+            echo "ℹ️ Z_DEVICE_MAX_NAME_LEN already defined" | tee -a $LOG_FILE
+          fi
+
+          # Copy configuration files
           mkdir -p "$ZMK_ROOT/app"
-          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app" | tee -a $LOG_FILE
-          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/$BOARD_NAME.keymap" | tee -a $LOG_FILE
-          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/$BOARD_NAME.overlay" | tee -a $LOG_FILE
-          
+          cp -r "$ZMK_CLONE_DIR/app/"* "$ZMK_ROOT/app"
+          cp "$CONFIG_DIR/$BOARD_NAME.keymap" "$ZMK_ROOT/app/" || true
+          cp "$CONFIG_DIR/$BOARD_NAME.overlay" "$ZMK_ROOT/app/" || true
+
           echo "--- DUMPING $BOARD_NAME.overlay ---" | tee -a $LOG_FILE
-          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay" | tee -a $LOG_FILE
+          cat -n "$ZMK_ROOT/app/$BOARD_NAME.overlay" || echo "(no overlay found)" | tee -a $LOG_FILE
           echo "----------------------------------" | tee -a $LOG_FILE
-          
+
           echo "🌿 Sourcing Zephyr environment..." | tee -a $LOG_FILE
           . "$ZMK_ROOT/zephyr/zephyr-env.sh"
-          
+
           echo "⚙️ Starting west build..." | tee -a $LOG_FILE
-          if west build -b $BOARD_NAME "$ZMK_ROOT/app" 2>&1 | tee -a $LOG_FILE; then
+          west build -b "$BOARD_NAME" "$ZMK_ROOT/app" --pristine 2>&1 | tee -a $LOG_FILE || echo "❌ Build failed" | tee -a $LOG_FILE
+
+          echo "🔍 Checking for firmware artifacts..." | tee -a $LOG_FILE
+          find "$ZMK_ROOT/build/zephyr" -maxdepth 1 -type f -printf '%f\n' | tee -a $LOG_FILE
+
+          # Save build status
+          if [ -f "$ZMK_ROOT/build/zephyr/zmk.uf2" ]; then
+            echo "FIRMWARE_PATH=$ZMK_ROOT/build/zephyr/zmk.uf2" >> $GITHUB_ENV
             echo "BUILD_STATUS=0" >> $GITHUB_ENV
-            echo "✅ Build completed successfully!" | tee -a $LOG_FILE
+          elif [ -f "$ZMK_ROOT/build/zephyr/zmk.hex" ]; then
+            echo "FIRMWARE_PATH=$ZMK_ROOT/build/zephyr/zmk.hex" >> $GITHUB_ENV
+            echo "BUILD_STATUS=0" >> $GITHUB_ENV
+          elif [ -f "$ZMK_ROOT/build/zephyr/zmk.bin" ]; then
+            echo "FIRMWARE_PATH=$ZMK_ROOT/build/zephyr/zmk.bin" >> $GITHUB_ENV
+            echo "BUILD_STATUS=0" >> $GITHUB_ENV
           else
             echo "BUILD_STATUS=1" >> $GITHUB_ENV
-            echo "❌ Build failed!" | tee -a $LOG_FILE
+            echo "❌ No firmware artifact found!" | tee -a $LOG_FILE
           fi
-          echo "--- Build status set to $BUILD_STATUS ---" | tee -a $LOG_FILE
-          
-          if [ "$BUILD_STATUS" -ne 0 ]; then
-            echo "Dumping zephyr.dts if available..." | tee -a $LOG_FILE
-            if [ -f "$DTS_PATH" ]; then
-              cat -n "$DTS_PATH" | tee -a $LOG_FILE
-            else
-              echo "zephyr.dts not found — build likely failed early." | tee -a $LOG_FILE
-            fi
-          fi
+
       - name: 💾 Upload Build Debug Logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,8 +115,8 @@ jobs:
         if: env.BUILD_STATUS == '1'
         uses: actions/upload-artifact@v4
         with:
-          name: devicetree-debug-logs
-          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts.pre
+          name: devicetree-debug
+          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zephyr.dts*
           retention-days: 2
 
       - name: ⬆️ Upload Firmware (on success)
@@ -116,4 +124,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zmk-firmware
-          path: ${{ github.workspace }}/zmk_workspace/build/zephyr/zmk.uf2
+          path: ${{ env.FIRMWARE_PATH }}
+          retention-days: 5
