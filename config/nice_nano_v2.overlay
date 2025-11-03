@@ -1,3 +1,5 @@
+#include <dt-bindings/zmk/matrix_transform.h>
+
 / {
     chosen {
         zmk,kscan = &kscan0;
@@ -6,8 +8,6 @@
 
     kscan0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
-        label = "KSCAN_0";
-
         row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
         col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&gpio0 5 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
@@ -21,10 +21,8 @@
         map = <0 1 2>;
     };
 
-    // --- Add behavior nodes below ---
     behavior_momentary_layer0: behavior_momentary_layer_0 {
         compatible = "zmk,behavior-momentary-layer";
-        label = "LAYER_MOMENTARY";
-        #binding-cells = <0>;
+        #binding-cells = <1>;
     };
 };
