@@ -57,16 +57,21 @@ jobs:
           cd "$ZMK_ROOT"
           west update | tee -a $LOG_FILE
 
-          # Apply fix for Z_DEVICE_MAX_NAME_LEN if missing
-          echo "🔧 Applying Z_DEVICE_MAX_NAME_LEN fix..." | tee -a $LOG_FILE
-          FIX_FILE="$ZMK_ROOT/zephyr/include/zephyr/device.h"
-          if ! grep -q "Z_DEVICE_MAX_NAME_LEN" "$FIX_FILE"; then
-            echo "#ifndef Z_DEVICE_MAX_NAME_LEN" >> "$FIX_FILE"
-            echo "#define Z_DEVICE_MAX_NAME_LEN 48" >> "$FIX_FILE"
-            echo "#endif" >> "$FIX_FILE"
-            echo "✅ Added Z_DEVICE_MAX_NAME_LEN fix" | tee -a $LOG_FILE
+          echo "🩹 Patching Zephyr device name length limit..." | tee -a $LOG_FILE
+          DEVICE_H_PATH="$ZMK_ROOT/zephyr/include/zephyr/device.h"
+          if [ -f "$DEVICE_H_PATH" ]; then
+            echo "✅ Found $DEVICE_H_PATH" | tee -a $LOG_FILE
+            echo "🔍 Before patch:" | tee -a $LOG_FILE
+            grep Z_DEVICE_MAX_NAME_LEN "$DEVICE_H_PATH" || echo "(none found)" | tee -a $LOG_FILE
+
+            sed -i 's/#define Z_DEVICE_MAX_NAME_LEN .*/#define Z_DEVICE_MAX_NAME_LEN 128/' "$DEVICE_H_PATH"
+
+            echo "🔍 After patch:" | tee -a $LOG_FILE
+            grep Z_DEVICE_MAX_NAME_LEN "$DEVICE_H_PATH" | tee -a $LOG_FILE
+            echo "✅ Patch applied successfully." | tee -a $LOG_FILE
           else
-            echo "ℹ️ Z_DEVICE_MAX_NAME_LEN already defined" | tee -a $LOG_FILE
+            echo "❌ device.h not found! Zephyr may not have been fetched correctly." | tee -a $LOG_FILE
+            ls -R "$ZMK_ROOT/zephyr" || true | tee -a $LOG_FILE
           fi
 
           # Copy configuration files
@@ -88,7 +93,6 @@ jobs:
           echo "🔍 Checking for firmware artifacts..." | tee -a $LOG_FILE
           find "$ZMK_ROOT/build/zephyr" -maxdepth 1 -type f -printf '%f\n' | tee -a $LOG_FILE
 
-          # Save build status
           if [ -f "$ZMK_ROOT/build/zephyr/zmk.uf2" ]; then
             echo "FIRMWARE_PATH=$ZMK_ROOT/build/zephyr/zmk.uf2" >> $GITHUB_ENV
             echo "BUILD_STATUS=0" >> $GITHUB_ENV
