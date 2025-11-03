@@ -3,9 +3,7 @@
         compatible = "zmk,keymap";
 
         default_layer {
-            bindings = <
-                &kp A  &kp B  &kp C
-            >;
+            bindings = <0x04 0x05 0x06>; /* A, B, C HID codes */
         };
     };
 };
