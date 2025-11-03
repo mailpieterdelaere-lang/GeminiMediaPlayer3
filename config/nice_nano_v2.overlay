@@ -1,5 +1,4 @@
 #include <dt-bindings/zmk/matrix_transform.h>
-#include "nice_nano_v2.keymap"
 
 / {
     chosen {
@@ -25,5 +24,15 @@
     behavior_momentary_layer0: behavior_momentary_layer_0 {
         compatible = "zmk,behavior-momentary-layer";
         #binding-cells = <1>;
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kp KC_A   &kp KC_B   &kp KC_C
+            >;
+        };
     };
 };
