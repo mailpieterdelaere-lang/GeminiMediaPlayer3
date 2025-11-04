@@ -22,10 +22,8 @@
         map = <0 1 2>;
     };
 
-    /* Minimal dummy keymap just to allow build */
     keymap0: keymap {
         compatible = "zmk,keymap";
-
         default_layer {
             bindings = <
                 &kp A &kp B &kp C
