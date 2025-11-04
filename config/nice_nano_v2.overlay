@@ -8,6 +8,7 @@
 
     kscan0: kscan_0 {
         compatible = "zmk,kscan-gpio-matrix";
+        label = "KSCAN_0";
         row-gpios = <&gpio0 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_UP)>;
         col-gpios = <&gpio0 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
                     <&gpio0 5 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>,
@@ -18,21 +19,11 @@
         compatible = "zmk,matrix-transform";
         rows = <1>;
         columns = <3>;
-        map = <0 1 2>;
+        map = <(0) (1) (2)>;
     };
 
     behavior_momentary_layer0: behavior_momentary_layer_0 {
         compatible = "zmk,behavior-momentary-layer";
         #binding-cells = <1>;
-    };
-
-    keymap {
-        compatible = "zmk,keymap";
-
-        default_layer {
-            bindings = <
-                &kp KC_A   &kp KC_B   &kp KC_C
-            >;
-        };
     };
 };
